@@ -1,0 +1,27 @@
+# ---- Secrets (NEVER commit real keys) ----
+.env
+.env.local
+.env*.local
+# keep example templates
+!.env.example
+
+# ---- Private build guide (kept off GitHub on purpose) ----
+PROMPTS.md
+
+# ---- Python backend ----
+__pycache__/
+*.py[cod]
+backend/venv/
+backend/.venv/
+.pytest_cache/
+
+# ---- Node / Next.js frontend ----
+node_modules/
+.next/
+out/
+next-env.d.ts
+
+# ---- Editor / OS ----
+.DS_Store
+Thumbs.db
+.vscode/

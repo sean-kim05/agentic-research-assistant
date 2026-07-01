@@ -1,0 +1,6 @@
+# Phase 0 dependencies (kept minimal on purpose).
+fastapi
+uvicorn
+python-dotenv
+
+# Later phases will add: anthropic, voyageai, pinecone, tavily-python, pypdf
