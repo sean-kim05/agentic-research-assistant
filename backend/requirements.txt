@@ -3,4 +3,8 @@ fastapi
 uvicorn
 python-dotenv
 
-# Later phases will add: anthropic, voyageai, pinecone, tavily-python, pypdf
+# Phase 1 dependencies.
+pypdf              # extract text from PDF files
+python-multipart   # lets FastAPI receive uploaded files (multipart/form-data)
+
+# Later phases will add: anthropic, voyageai, pinecone, tavily-python
