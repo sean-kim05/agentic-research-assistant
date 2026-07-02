@@ -67,7 +67,7 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 **Verified 2026-07-01:** backend `/health` returns JSON; frontend serves 200; CORS returns `Access-Control-Allow-Origin: http://localhost:3000`.
 **Verified 2026-07-02:** `POST /upload` with a 1-page test PDF (1885 chars) returned 3 chunks `[1000, 1000, 285]` (overlap 200); a non-PDF upload correctly returned `400 {"detail": "Please upload a .pdf file."}`.
 
-**Phase 2 SCAFFOLDED (2026-07-02) — code written & verified without keys; live test pending real keys.**
+**Phase 2 COMPLETE (2026-07-02) — verified live end-to-end with real Voyage + Pinecone keys.**
 - `backend/config.py` — central env config + `voyage_ready()` / `pinecone_ready()` (detects placeholder keys).
 - `backend/embeddings.py` — Voyage `voyage-3` wrapper (`embed_documents` / `embed_query`, batched; input_type document vs query).
 - `backend/vector_store.py` — Pinecone: lazy index create (dim 1024, cosine, serverless), `upsert_chunks`, `search`.
@@ -75,7 +75,7 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - `frontend/src/app/_components/SemanticSearch.tsx` — query box; checks `/status`, shows an "add keys" banner when disabled; renders ranked matches with cosine scores.
 - Deps added: `voyageai` (0.4.1), `pinecone` (9.1.0).
 - **Verified without keys (2026-07-02):** all modules import; `/status` → both false; `/search` → 503; `/upload` → 3 chunks with `indexed:false` + explanatory message; frontend renders the search section.
-- **BLOCKED on:** real `VOYAGE_API_KEY` + `PINECONE_API_KEY` in `backend/.env` (placeholders there now). Add them, restart backend, then re-upload a PDF and test search to complete Phase 2.
+- **Verified live (2026-07-02):** uploaded a PDF → 3 chunks embedded (voyage-3) + upserted to Pinecone index `research-assistant`; `/search` returns ranked matches with cosine scores (e.g. "how do embeddings capture meaning?" → the embeddings chunk at 0.64). Real keys live in `backend/.env` (gitignored).
 
 ### How to run both services locally
 - **Backend** (from `backend/`): `venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000` → http://localhost:8000 (docs at `/docs`)
@@ -91,7 +91,7 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 
 - [x] **Phase 0 — Skeletons connected:** Minimal FastAPI backend with one test endpoint + minimal Next.js frontend that calls it and displays the response. Prove the frontend↔backend HTTP connection works locally. **DONE 2026-07-01.**
 - [x] **Phase 1 — Upload & chunk (no AI):** File upload UI for PDFs. FastAPI endpoint that extracts the PDF text and splits it into chunks (fixed-size with overlap to start). Show the chunks. No embeddings yet. **DONE 2026-07-02.**
-- [ ] **Phase 2 — Embeddings & Pinecone:** Embed the chunks with Voyage, store vectors + metadata in Pinecone. Test semantic search: given a query, return the most similar chunks.
+- [x] **Phase 2 — Embeddings & Pinecone:** Embed the chunks with Voyage, store vectors + metadata in Pinecone. Test semantic search: given a query, return the most similar chunks. **DONE 2026-07-02.**
 - [ ] **Phase 3 — Basic RAG (single-step):** Question → embed → retrieve top chunks from Pinecone → pass them to Claude → return an answer grounded in the docs.
 - [ ] **Phase 4 — Citations:** Return which chunks/sources each answer used, and display them in the frontend.
 - [ ] **Phase 5 — Streaming:** Stream Claude's answer to the frontend token-by-token instead of waiting for the full response.
@@ -134,6 +134,6 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 > Claude: track open problems and follow-ups here.
 
 - Root project folder still named `next js`; to be renamed to `agentic-research-assistant` by Sean (close IDE → rename → reopen).
-- **Phase 2 blocked on real keys:** add `VOYAGE_API_KEY` + `PINECONE_API_KEY` to `backend/.env`, restart backend, then re-upload a PDF and run a search to complete Phase 2's live test.
+- Pinecone free tier: index `research-assistant` (1024-dim, cosine, aws/us-east-1) is auto-created on first upload — no manual dashboard setup. New upserts take a few seconds to become queryable (eventual consistency).
 - VS Code may show "package not installed" on backend imports — select the venv interpreter (`backend/venv/Scripts/python.exe`) via the Python: Select Interpreter command. Doesn't affect running the server.
 - GitHub: `gh` authed as `sean-kim05`. Push to a remote as we go (see Decisions re: no Claude attribution in commits).
