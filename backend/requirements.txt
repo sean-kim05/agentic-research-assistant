@@ -7,4 +7,8 @@ python-dotenv
 pypdf              # extract text from PDF files
 python-multipart   # lets FastAPI receive uploaded files (multipart/form-data)
 
-# Later phases will add: anthropic, voyageai, pinecone, tavily-python
+# Phase 2 dependencies.
+voyageai           # embeddings (voyage-3)
+pinecone           # vector database (semantic search)
+
+# Later phases will add: anthropic, tavily-python

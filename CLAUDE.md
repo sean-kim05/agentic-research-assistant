@@ -67,7 +67,15 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 **Verified 2026-07-01:** backend `/health` returns JSON; frontend serves 200; CORS returns `Access-Control-Allow-Origin: http://localhost:3000`.
 **Verified 2026-07-02:** `POST /upload` with a 1-page test PDF (1885 chars) returned 3 chunks `[1000, 1000, 285]` (overlap 200); a non-PDF upload correctly returned `400 {"detail": "Please upload a .pdf file."}`.
 
-**NEXT UP — Phase 2 needs external API keys** (Voyage AI for embeddings, Pinecone for the vector DB). Add them to `backend/.env` (gitignored) before starting Phase 2.
+**Phase 2 SCAFFOLDED (2026-07-02) — code written & verified without keys; live test pending real keys.**
+- `backend/config.py` — central env config + `voyage_ready()` / `pinecone_ready()` (detects placeholder keys).
+- `backend/embeddings.py` — Voyage `voyage-3` wrapper (`embed_documents` / `embed_query`, batched; input_type document vs query).
+- `backend/vector_store.py` — Pinecone: lazy index create (dim 1024, cosine, serverless), `upsert_chunks`, `search`.
+- `main.py` — `/upload` now embeds + upserts to Pinecone (best-effort; skipped with a clear message if keys are placeholders); new `POST /search` (503 until keys set) and `GET /status`.
+- `frontend/src/app/_components/SemanticSearch.tsx` — query box; checks `/status`, shows an "add keys" banner when disabled; renders ranked matches with cosine scores.
+- Deps added: `voyageai` (0.4.1), `pinecone` (9.1.0).
+- **Verified without keys (2026-07-02):** all modules import; `/status` → both false; `/search` → 503; `/upload` → 3 chunks with `indexed:false` + explanatory message; frontend renders the search section.
+- **BLOCKED on:** real `VOYAGE_API_KEY` + `PINECONE_API_KEY` in `backend/.env` (placeholders there now). Add them, restart backend, then re-upload a PDF and test search to complete Phase 2.
 
 ### How to run both services locally
 - **Backend** (from `backend/`): `venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000` → http://localhost:8000 (docs at `/docs`)
@@ -105,6 +113,10 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - **Phase 1 chunking = character-based sliding window (2026-07-02):** `chunk_size=1000`, `overlap=200` chars, step = 800. Chosen for simplicity/explainability; token- or sentence-based chunking is a later refinement. Chunking lives in its own `chunking.py` so it's easy to reason about and test in isolation.
 - **Phase 1 in-memory store (2026-07-02):** uploaded chunks kept in a plain dict (`UPLOADED_DOCUMENTS`), no database — deliberately deferred to Phase 2 (Pinecone).
 - **Frontend = Server Component page + Client islands (2026-07-02):** `page.tsx` stays a Server Component; only `BackendStatus` and `PdfUploader` are `"use client"`. Teaches the idiomatic Next.js server/client split.
+- **Phase 2 modular design (2026-07-02):** embeddings (`embeddings.py`), vector store (`vector_store.py`), and config (`config.py`) are separate modules so each concern is testable and explainable in isolation.
+- **Phase 2 graceful degradation with placeholder keys (2026-07-02):** the app runs with placeholder Voyage/Pinecone keys — upload + chunk still work; embedding/search are skipped (`/upload` returns `indexed:false`; `/search` → 503) with clear messages, and `GET /status` drives an "add keys" banner in the UI. Lets us build/verify the wiring before real keys exist.
+- **Phase 2 vector settings (2026-07-02):** `voyage-3` embeddings (1024-dim), Pinecone serverless index (cosine, aws/us-east-1), asymmetric input types (document vs query), lazy index creation on first use.
+- **Commits: no Claude attribution (2026-07-02):** commit messages are plain and do NOT include Claude/AI co-author or "generated with" trailers (Sean's preference).
 
 ---
 
@@ -122,3 +134,6 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 > Claude: track open problems and follow-ups here.
 
 - Root project folder still named `next js`; to be renamed to `agentic-research-assistant` by Sean (close IDE → rename → reopen).
+- **Phase 2 blocked on real keys:** add `VOYAGE_API_KEY` + `PINECONE_API_KEY` to `backend/.env`, restart backend, then re-upload a PDF and run a search to complete Phase 2's live test.
+- VS Code may show "package not installed" on backend imports — select the venv interpreter (`backend/venv/Scripts/python.exe`) via the Python: Select Interpreter command. Doesn't affect running the server.
+- GitHub: `gh` authed as `sean-kim05`. Push to a remote as we go (see Decisions re: no Claude attribution in commits).

@@ -4,6 +4,7 @@
 
 import BackendStatus from "./_components/BackendStatus";
 import PdfUploader from "./_components/PdfUploader";
+import SemanticSearch from "./_components/SemanticSearch";
 
 export default function Home() {
   return (
@@ -16,12 +17,13 @@ export default function Home() {
           <BackendStatus />
         </div>
         <p className="mt-1 text-sm text-zinc-500">
-          Phase 1 &mdash; upload a PDF, extract its text, and split it into
-          overlapping chunks.
+          Upload a PDF &rarr; extract text &rarr; chunk &rarr; embed &amp; index
+          &rarr; semantic search.
         </p>
       </header>
 
       <PdfUploader />
+      <SemanticSearch />
     </main>
   );
 }

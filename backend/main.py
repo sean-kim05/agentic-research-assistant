@@ -2,13 +2,15 @@
 FastAPI backend - Agentic Research Assistant.
 
 Phase 0: GET /health proves the frontend can reach this backend.
-Phase 1: POST /upload receives a PDF, extracts its text, and splits it into
-         overlapping chunks (stored in memory for now, no database yet).
+Phase 1: POST /upload receives a PDF, extracts its text, chunks it.
+Phase 2: on upload we also EMBED the chunks (Voyage) and store them in a vector
+         DB (Pinecone); POST /search runs semantic search over stored chunks.
+         GET /status reports whether the Voyage/Pinecone keys are configured.
 """
 
 import io
 import os
-from typing import List
+from typing import List, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -16,33 +18,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pypdf import PdfReader
 
+import config
+import embeddings
+import vector_store
 from chunking import chunk_text
 
-# Load variables from backend/.env into the process environment.
 load_dotenv()
 
-# Which frontend origin(s) may call this API *from the browser*.
 FRONTEND_ORIGINS = [
     origin.strip()
     for origin in os.getenv("FRONTEND_ORIGINS", "http://localhost:3000").split(",")
     if origin.strip()
 ]
 
-# Chunking configuration (Phase 1). Tweak these to see how retrieval-sized
-# pieces change.
+# Chunking configuration (Phase 1).
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 
-# In-memory document store: { filename: [chunk, chunk, ...] }.
-# Phase 1 only - this is replaced by Pinecone (a real vector DB) in Phase 2.
+# In-memory document store (Phase 1). Still handy for inspecting chunks even
+# before vector indexing; Pinecone (Phase 2) is the real retrieval store.
 UPLOADED_DOCUMENTS: dict[str, list[str]] = {}
 
-app = FastAPI(title="Agentic Research Assistant API", version="0.1.0")
+app = FastAPI(title="Agentic Research Assistant API", version="0.2.0")
 
-# --- CORS -----------------------------------------------------------------
-# A browser BLOCKS a page from localhost:3000 from reading responses off a
-# different origin (localhost:8000) unless the server opts in with these
-# headers. See GET /health for the Phase 0 explanation.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=FRONTEND_ORIGINS,
@@ -56,8 +54,6 @@ app.add_middleware(
 # Phase 0 - health check
 # ==========================================================================
 class HealthResponse(BaseModel):
-    """Shape of the JSON returned by GET /health (validated by Pydantic)."""
-
     status: str
     service: str
     message: str
@@ -65,7 +61,6 @@ class HealthResponse(BaseModel):
 
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
-    """Liveness check the frontend calls to prove the connection works."""
     return HealthResponse(
         status="ok",
         service="agentic-research-assistant-backend",
@@ -74,19 +69,32 @@ async def health() -> HealthResponse:
 
 
 # ==========================================================================
-# Phase 1 - upload, extract text, chunk
+# Phase 2 - service configuration status
+# ==========================================================================
+class StatusResponse(BaseModel):
+    voyage_ready: bool
+    pinecone_ready: bool
+
+
+@app.get("/status", response_model=StatusResponse)
+async def status() -> StatusResponse:
+    """Tell the frontend whether embeddings/vector search are usable yet."""
+    return StatusResponse(
+        voyage_ready=config.voyage_ready(),
+        pinecone_ready=config.pinecone_ready(),
+    )
+
+
+# ==========================================================================
+# Phase 1 + 2 - upload, extract text, chunk, embed, index
 # ==========================================================================
 class Chunk(BaseModel):
-    """One text chunk produced from an uploaded document."""
-
     id: int
     text: str
     char_count: int
 
 
 class UploadResponse(BaseModel):
-    """Result of processing an uploaded PDF."""
-
     filename: str
     num_pages: int
     num_chars: int
@@ -94,32 +102,21 @@ class UploadResponse(BaseModel):
     overlap: int
     num_chunks: int
     chunks: List[Chunk]
+    indexed: bool           # were the chunks embedded + stored in Pinecone?
+    index_message: str      # human-readable note about indexing
 
 
 @app.post("/upload", response_model=UploadResponse)
 async def upload(file: UploadFile = File(...)) -> UploadResponse:
-    """Receive a PDF, extract its text, and split it into overlapping chunks.
-
-    Steps:
-      1. Validate it's a PDF.
-      2. Read the raw bytes and parse pages with pypdf.
-      3. Concatenate the per-page text into one string.
-      4. Chunk it (see chunking.py) and store the chunks in memory.
-    """
-    # 1. Basic validation.
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Please upload a .pdf file.")
 
-    # 2. Read bytes into memory and parse. UploadFile.read() is async because
-    #    the file may stream in over the network.
     raw = await file.read()
     try:
         reader = PdfReader(io.BytesIO(raw))
-    except Exception as exc:  # malformed / not really a PDF
+    except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Could not read PDF: {exc}")
 
-    # 3. Extract text page by page. Some PDFs are scanned images with no text
-    #    layer - extract_text() returns "" for those.
     pages_text = [page.extract_text() or "" for page in reader.pages]
     full_text = "\n\n".join(pages_text)
 
@@ -129,9 +126,32 @@ async def upload(file: UploadFile = File(...)) -> UploadResponse:
             detail="No extractable text found. Is this a scanned/image-only PDF?",
         )
 
-    # 4. Chunk and store.
     pieces = chunk_text(full_text, CHUNK_SIZE, CHUNK_OVERLAP)
     UPLOADED_DOCUMENTS[file.filename] = pieces
+
+    # --- Phase 2: embed + index (best-effort) ---
+    # If keys aren't set yet, we still return the chunks so you can inspect
+    # them; indexing is simply skipped with a clear message.
+    indexed = False
+    if config.voyage_ready() and config.pinecone_ready():
+        try:
+            vecs = embeddings.embed_documents(pieces)
+            stored = vector_store.upsert_chunks(file.filename, pieces, vecs)
+            indexed = True
+            index_message = f"Embedded and stored {stored} chunks in Pinecone."
+        except Exception as exc:  # surface the real error without crashing
+            index_message = f"Indexing failed: {exc}"
+    else:
+        missing = []
+        if not config.voyage_ready():
+            missing.append("VOYAGE_API_KEY")
+        if not config.pinecone_ready():
+            missing.append("PINECONE_API_KEY")
+        index_message = (
+            "Chunks shown but NOT indexed - missing "
+            + " and ".join(missing)
+            + " in backend/.env."
+        )
 
     chunks = [
         Chunk(id=i, text=piece, char_count=len(piece))
@@ -146,4 +166,51 @@ async def upload(file: UploadFile = File(...)) -> UploadResponse:
         overlap=CHUNK_OVERLAP,
         num_chunks=len(chunks),
         chunks=chunks,
+        indexed=indexed,
+        index_message=index_message,
+    )
+
+
+# ==========================================================================
+# Phase 2 - semantic search
+# ==========================================================================
+class SearchRequest(BaseModel):
+    query: str
+    top_k: int = 5
+
+
+class SearchMatch(BaseModel):
+    id: str
+    score: float
+    doc_id: Optional[str] = None
+    chunk_index: Optional[int] = None
+    text: str
+
+
+class SearchResponse(BaseModel):
+    query: str
+    matches: List[SearchMatch]
+
+
+@app.post("/search", response_model=SearchResponse)
+async def search(req: SearchRequest) -> SearchResponse:
+    """Embed the query and return the most semantically similar stored chunks."""
+    if not (config.voyage_ready() and config.pinecone_ready()):
+        raise HTTPException(
+            status_code=503,
+            detail="Search unavailable: add VOYAGE_API_KEY and PINECONE_API_KEY "
+            "to backend/.env, then restart the backend.",
+        )
+    if not req.query.strip():
+        raise HTTPException(status_code=400, detail="Query must not be empty.")
+
+    try:
+        query_vec = embeddings.embed_query(req.query)
+        results = vector_store.search(query_vec, top_k=req.top_k)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Search failed: {exc}")
+
+    return SearchResponse(
+        query=req.query,
+        matches=[SearchMatch(**m) for m in results],
     )
