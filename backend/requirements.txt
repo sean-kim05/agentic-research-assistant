@@ -11,4 +11,7 @@ python-multipart   # lets FastAPI receive uploaded files (multipart/form-data)
 voyageai           # embeddings (voyage-3)
 pinecone           # vector database (semantic search)
 
-# Later phases will add: anthropic, tavily-python
+# Phase 3 dependencies.
+anthropic          # Claude API (grounded answer generation)
+
+# Later phases will add: tavily-python

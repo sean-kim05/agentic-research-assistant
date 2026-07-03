@@ -17,6 +17,7 @@ load_dotenv()
 # --- API keys -------------------------------------------------------------
 VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY", "").strip()
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "").strip()
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
 
 # Values that mean "still a placeholder / not set". If the env var equals one
 # of these, we treat the corresponding service as NOT configured.
@@ -24,6 +25,7 @@ _PLACEHOLDERS = {
     "",
     "your-voyage-key-here",
     "your-pinecone-key-here",
+    "your-anthropic-key-here",
     "changeme",
     "todo",
 }
@@ -31,6 +33,11 @@ _PLACEHOLDERS = {
 # --- Embedding settings ---------------------------------------------------
 EMBED_MODEL = "voyage-3"
 EMBED_DIM = 1024  # voyage-3 produces 1024-dimensional vectors
+
+# --- LLM (answer generation) settings -------------------------------------
+# The model Claude uses to write the grounded answer. Default is the most
+# capable Opus; set ANSWER_MODEL=claude-haiku-4-5 in .env for cheap testing.
+ANSWER_MODEL = os.getenv("ANSWER_MODEL", "claude-opus-4-8").strip()
 
 # --- Pinecone settings ----------------------------------------------------
 PINECONE_INDEX = os.getenv("PINECONE_INDEX", "research-assistant").strip()
@@ -46,3 +53,8 @@ def voyage_ready() -> bool:
 def pinecone_ready() -> bool:
     """True once a real Pinecone API key is present."""
     return PINECONE_API_KEY.lower() not in _PLACEHOLDERS
+
+
+def anthropic_ready() -> bool:
+    """True once a real Anthropic (Claude) API key is present."""
+    return ANTHROPIC_API_KEY.lower() not in _PLACEHOLDERS

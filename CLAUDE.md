@@ -77,6 +77,14 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - **Verified without keys (2026-07-02):** all modules import; `/status` → both false; `/search` → 503; `/upload` → 3 chunks with `indexed:false` + explanatory message; frontend renders the search section.
 - **Verified live (2026-07-02):** uploaded a PDF → 3 chunks embedded (voyage-3) + upserted to Pinecone index `research-assistant`; `/search` returns ranked matches with cosine scores (e.g. "how do embeddings capture meaning?" → the embeddings chunk at 0.64). Real keys live in `backend/.env` (gitignored).
 
+**Phase 3 COMPLETE (2026-07-02) — single-step RAG verified live.**
+- `backend/rag.py` — `answer_question(question, top_k)`: embed question → Pinecone search → build a labeled CONTEXT block → `client.messages.create` (Claude) with a grounding SYSTEM prompt → return answer + retrieved chunks.
+- `main.py` — new `POST /ask` (503 until Voyage+Pinecone+Anthropic keys set); `GET /status` now reports `anthropic_ready`.
+- `config.py` — `ANTHROPIC_API_KEY`, `anthropic_ready()`, and `ANSWER_MODEL` (default `claude-opus-4-8`, override in `.env`, e.g. `claude-haiku-4-5` for cheap testing).
+- `frontend/src/app/_components/AskAssistant.tsx` — question box → grounded answer; status-gated banner.
+- Dep added: `anthropic` (0.116.0). Real `ANTHROPIC_API_KEY` in `backend/.env`.
+- **Verified live (2026-07-02):** asked the indexed résumé about real-time systems; Claude synthesized a grounded answer across multiple chunks (CALIT2 100–200ms, CollabCode 17ms p95) with no hallucinations.
+
 ### How to run both services locally
 - **Backend** (from `backend/`): `venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000` → http://localhost:8000 (docs at `/docs`)
 - **Frontend** (from `frontend/`): `npm run dev` → http://localhost:3000
@@ -92,7 +100,7 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - [x] **Phase 0 — Skeletons connected:** Minimal FastAPI backend with one test endpoint + minimal Next.js frontend that calls it and displays the response. Prove the frontend↔backend HTTP connection works locally. **DONE 2026-07-01.**
 - [x] **Phase 1 — Upload & chunk (no AI):** File upload UI for PDFs. FastAPI endpoint that extracts the PDF text and splits it into chunks (fixed-size with overlap to start). Show the chunks. No embeddings yet. **DONE 2026-07-02.**
 - [x] **Phase 2 — Embeddings & Pinecone:** Embed the chunks with Voyage, store vectors + metadata in Pinecone. Test semantic search: given a query, return the most similar chunks. **DONE 2026-07-02.**
-- [ ] **Phase 3 — Basic RAG (single-step):** Question → embed → retrieve top chunks from Pinecone → pass them to Claude → return an answer grounded in the docs.
+- [x] **Phase 3 — Basic RAG (single-step):** Question → embed → retrieve top chunks from Pinecone → pass them to Claude → return an answer grounded in the docs. **DONE 2026-07-02.**
 - [ ] **Phase 4 — Citations:** Return which chunks/sources each answer used, and display them in the frontend.
 - [ ] **Phase 5 — Streaming:** Stream Claude's answer to the frontend token-by-token instead of waiting for the full response.
 - [ ] **Phase 6 — AGENTIC upgrade:** Instead of single-step retrieve-then-answer, Claude first decomposes the question into sub-questions, retrieves for each, then synthesizes a final answer across all retrieved context. (This is the core differentiator.)
@@ -117,6 +125,8 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - **Phase 2 graceful degradation with placeholder keys (2026-07-02):** the app runs with placeholder Voyage/Pinecone keys — upload + chunk still work; embedding/search are skipped (`/upload` returns `indexed:false`; `/search` → 503) with clear messages, and `GET /status` drives an "add keys" banner in the UI. Lets us build/verify the wiring before real keys exist.
 - **Phase 2 vector settings (2026-07-02):** `voyage-3` embeddings (1024-dim), Pinecone serverless index (cosine, aws/us-east-1), asymmetric input types (document vs query), lazy index creation on first use.
 - **Commits: no Claude attribution (2026-07-02):** commit messages are plain and do NOT include Claude/AI co-author or "generated with" trailers (Sean's preference).
+- **Phase 3 grounding + anti-hallucination (2026-07-02):** the SYSTEM prompt forces Claude to answer ONLY from the retrieved CONTEXT and to say "I couldn't find the answer... in the uploaded documents" when it's absent. Chunks are passed as labeled `[Source N — doc chunk i]` blocks (sets up Phase 4 citations). Non-streaming `messages.create` (streaming is Phase 5). Model is config-driven (`ANSWER_MODEL`), default `claude-opus-4-8`.
+- **Restart backend on .env/code change (2026-07-02):** uvicorn `--reload` has intermittently NOT picked up changes (stale worker keeps the old code/keys, and orphaned processes hold port 8000). Reliable fix: kill python / free port 8000, start a fresh uvicorn. Verify via `GET /status`.
 
 ---
 

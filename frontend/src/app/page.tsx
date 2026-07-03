@@ -2,6 +2,7 @@
 // drops in two interactive Client Components (islands): the live backend
 // status badge and the PDF uploader.
 
+import AskAssistant from "./_components/AskAssistant";
 import BackendStatus from "./_components/BackendStatus";
 import PdfUploader from "./_components/PdfUploader";
 import SemanticSearch from "./_components/SemanticSearch";
@@ -23,6 +24,7 @@ export default function Home() {
       </header>
 
       <PdfUploader />
+      <AskAssistant />
       <SemanticSearch />
     </main>
   );

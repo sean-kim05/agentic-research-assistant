@@ -20,6 +20,7 @@ from pypdf import PdfReader
 
 import config
 import embeddings
+import rag
 import vector_store
 from chunking import chunk_text
 
@@ -74,14 +75,16 @@ async def health() -> HealthResponse:
 class StatusResponse(BaseModel):
     voyage_ready: bool
     pinecone_ready: bool
+    anthropic_ready: bool
 
 
 @app.get("/status", response_model=StatusResponse)
 async def status() -> StatusResponse:
-    """Tell the frontend whether embeddings/vector search are usable yet."""
+    """Tell the frontend which capabilities are usable yet."""
     return StatusResponse(
         voyage_ready=config.voyage_ready(),
         pinecone_ready=config.pinecone_ready(),
+        anthropic_ready=config.anthropic_ready(),
     )
 
 
@@ -214,3 +217,40 @@ async def search(req: SearchRequest) -> SearchResponse:
         query=req.query,
         matches=[SearchMatch(**m) for m in results],
     )
+
+
+# ==========================================================================
+# Phase 3 - single-step RAG (retrieve + ask Claude)
+# ==========================================================================
+class AskRequest(BaseModel):
+    question: str
+    top_k: int = 5
+
+
+class AskResponse(BaseModel):
+    question: str
+    answer: str
+
+
+@app.post("/ask", response_model=AskResponse)
+async def ask(req: AskRequest) -> AskResponse:
+    """Answer a question grounded in the retrieved document chunks."""
+    if not (
+        config.voyage_ready()
+        and config.pinecone_ready()
+        and config.anthropic_ready()
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail="Ask unavailable: set VOYAGE_API_KEY, PINECONE_API_KEY, and "
+            "ANTHROPIC_API_KEY in backend/.env, then restart the backend.",
+        )
+    if not req.question.strip():
+        raise HTTPException(status_code=400, detail="Question must not be empty.")
+
+    try:
+        result = rag.answer_question(req.question, top_k=req.top_k)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Answer failed: {exc}")
+
+    return AskResponse(question=req.question, answer=result["answer"])
