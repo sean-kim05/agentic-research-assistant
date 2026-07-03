@@ -9,12 +9,14 @@ Phase 2: on upload we also EMBED the chunks (Voyage) and store them in a vector
 """
 
 import io
+import json
 import os
 from typing import List, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from pypdf import PdfReader
 
@@ -277,3 +279,38 @@ async def ask(req: AskRequest) -> AskResponse:
     ]
 
     return AskResponse(question=req.question, answer=result["answer"], sources=sources)
+
+
+# ==========================================================================
+# Phase 5 - streaming RAG (Server-Sent Events)
+# ==========================================================================
+@app.post("/ask/stream")
+async def ask_stream(req: AskRequest) -> StreamingResponse:
+    """Same as /ask, but streams the answer token-by-token as SSE.
+
+    Events: `sources` (once), `token` (many), `done` (once), `error` (on failure).
+    """
+    if not (
+        config.voyage_ready()
+        and config.pinecone_ready()
+        and config.anthropic_ready()
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail="Ask unavailable: set VOYAGE_API_KEY, PINECONE_API_KEY, and "
+            "ANTHROPIC_API_KEY in backend/.env, then restart the backend.",
+        )
+    if not req.question.strip():
+        raise HTTPException(status_code=400, detail="Question must not be empty.")
+
+    def event_stream():
+        # Each SSE message is "event: <type>\ndata: <json>\n\n".
+        try:
+            for event_type, payload in rag.stream_answer(
+                req.question, top_k=req.top_k
+            ):
+                yield f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
+        except Exception as exc:  # surface errors as an SSE event, not a crash
+            yield f"event: error\ndata: {json.dumps(str(exc))}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")

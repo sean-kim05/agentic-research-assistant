@@ -1,8 +1,10 @@
 "use client";
 
-// Phase 3 UI: ask a question, get an answer Claude generated grounded in the
-// retrieved document chunks. Checks /status so it can tell you when a key is
-// missing (needs Voyage + Pinecone + Anthropic).
+// Phase 3-5 UI: ask a question, get an answer Claude generates grounded in the
+// retrieved chunks, WITH citations, STREAMED token-by-token.
+//
+// We POST to /ask/stream and read the response body as a stream (EventSource
+// only supports GET, so we parse the SSE format manually with a reader).
 
 import { useEffect, useState } from "react";
 import { API_URL } from "@/lib/api";
@@ -15,13 +17,11 @@ type Source = {
   text: string;
 };
 
-type AskResponse = { question: string; answer: string; sources: Source[] };
-
 type State =
   | { kind: "idle" }
-  | { kind: "asking" }
+  | { kind: "streaming"; answer: string; sources: Source[] }
   | { kind: "error"; message: string }
-  | { kind: "done"; data: AskResponse };
+  | { kind: "done"; answer: string; sources: Source[] };
 
 export default function AskAssistant() {
   const [question, setQuestion] = useState("");
@@ -49,14 +49,15 @@ export default function AskAssistant() {
 
   async function handleAsk() {
     if (!question.trim()) return;
-    setState({ kind: "asking" });
+    setState({ kind: "streaming", answer: "", sources: [] });
+
     try {
-      const res = await fetch(`${API_URL}/ask`, {
+      const res = await fetch(`${API_URL}/ask/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, top_k: 5 }),
       });
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
         let detail = `Ask failed (${res.status})`;
         try {
           const e = await res.json();
@@ -66,8 +67,43 @@ export default function AskAssistant() {
         }
         throw new Error(detail);
       }
-      const data = (await res.json()) as AskResponse;
-      setState({ kind: "done", data });
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let answer = "";
+      let sources: Source[] = [];
+
+      // Read the stream chunk by chunk, splitting on the SSE record separator.
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const records = buffer.split("\n\n");
+        buffer = records.pop() ?? ""; // keep the incomplete trailing record
+
+        for (const record of records) {
+          if (!record.trim()) continue;
+          let event = "message";
+          let data = "";
+          for (const line of record.split("\n")) {
+            if (line.startsWith("event:")) event = line.slice(6).trim();
+            else if (line.startsWith("data:")) data += line.slice(5).trim();
+          }
+          if (event === "sources") {
+            sources = JSON.parse(data) as Source[];
+            setState({ kind: "streaming", answer, sources });
+          } else if (event === "token") {
+            answer += JSON.parse(data) as string;
+            setState({ kind: "streaming", answer, sources });
+          } else if (event === "error") {
+            throw new Error(JSON.parse(data) as string);
+          }
+        }
+      }
+
+      setState({ kind: "done", answer, sources });
     } catch (err) {
       setState({
         kind: "error",
@@ -76,13 +112,20 @@ export default function AskAssistant() {
     }
   }
 
+  const busy = state.kind === "streaming";
+  const answer =
+    state.kind === "streaming" || state.kind === "done" ? state.answer : "";
+  const sources =
+    state.kind === "streaming" || state.kind === "done" ? state.sources : [];
+
   return (
     <section className="mt-10">
       <h2 className="text-lg font-semibold tracking-tight text-black dark:text-zinc-50">
         Ask your documents
       </h2>
       <p className="mt-1 text-sm text-zinc-500">
-        Claude answers using only the passages retrieved from your uploads.
+        Claude answers using only the passages retrieved from your uploads, and
+        cites them.
       </p>
 
       {ready === false && (
@@ -104,10 +147,10 @@ export default function AskAssistant() {
         />
         <button
           onClick={handleAsk}
-          disabled={!question.trim() || state.kind === "asking" || ready === false}
+          disabled={!question.trim() || busy || ready === false}
           className="shrink-0 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {state.kind === "asking" ? "Thinking…" : "Ask"}
+          {busy ? "Streaming…" : "Ask"}
         </button>
       </div>
 
@@ -117,21 +160,22 @@ export default function AskAssistant() {
         </div>
       )}
 
-      {state.kind === "done" && (
+      {(state.kind === "streaming" || state.kind === "done") && (
         <div className="mt-4 space-y-4">
           <div className="rounded-xl border border-black/10 bg-white p-5 dark:border-white/15 dark:bg-zinc-900">
             <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-800 dark:text-zinc-200">
-              {state.data.answer}
+              {answer}
+              {busy && <span className="ml-0.5 animate-pulse">▍</span>}
             </p>
           </div>
 
-          {state.data.sources.length > 0 && (
+          {sources.length > 0 && (
             <div>
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
                 Sources
               </h3>
               <ol className="space-y-2">
-                {state.data.sources.map((s) => (
+                {sources.map((s) => (
                   <li
                     key={s.number}
                     className="rounded-lg border border-black/10 bg-white p-3 dark:border-white/15 dark:bg-zinc-900"

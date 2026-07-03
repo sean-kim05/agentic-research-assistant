@@ -91,3 +91,53 @@ def answer_question(question: str, top_k: int = 5) -> dict:
     answer = "".join(block.text for block in response.content if block.type == "text")
 
     return {"answer": answer, "chunks": chunks}
+
+
+def _sources_from_chunks(chunks: list[dict]) -> list[dict]:
+    return [
+        {
+            "number": i,
+            "doc_id": c.get("doc_id"),
+            "chunk_index": c.get("chunk_index"),
+            "score": c.get("score", 0.0),
+            "text": c.get("text", ""),
+        }
+        for i, c in enumerate(chunks, start=1)
+    ]
+
+
+def stream_answer(question: str, top_k: int = 5):
+    """Generator for streaming RAG (Phase 5).
+
+    Yields (event_type, payload) tuples:
+      ("sources", [...])  once, up front (retrieval finishes before generation)
+      ("token", "...")    many times, as Claude streams the answer
+      ("done", "")        once at the end
+    The retrieval step is the same as answer_question; only generation streams.
+    """
+    query_vec = embeddings.embed_query(question)
+    chunks = vector_store.search(query_vec, top_k=top_k)
+
+    # Send the sources immediately so the UI can show them while the answer types.
+    yield ("sources", _sources_from_chunks(chunks))
+
+    if not chunks:
+        yield ("token", "No documents have been indexed yet. Upload a PDF first.")
+        yield ("done", "")
+        return
+
+    context = _build_context(chunks)
+    user_message = f"CONTEXT:\n{context}\n\nQUESTION: {question}"
+
+    client = _get_client()
+    # messages.stream() yields text deltas as they're generated.
+    with client.messages.stream(
+        model=config.ANSWER_MODEL,
+        max_tokens=1024,
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": user_message}],
+    ) as stream:
+        for text in stream.text_stream:
+            yield ("token", text)
+
+    yield ("done", "")

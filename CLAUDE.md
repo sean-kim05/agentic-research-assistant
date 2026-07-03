@@ -92,6 +92,12 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - The "not found in documents" case is handled by the same grounding prompt (Phase 3).
 - **Verified live (2026-07-02):** "what did the candidate do at CALIT2?" → answer with `[1][2]` inline citations + a 4-source list; citations map to the correct résumé chunks.
 
+**Phase 5 COMPLETE (2026-07-02) — streaming verified live.**
+- `rag.py` — `stream_answer(question, top_k)` generator yields `("sources", [...])` then `("token", "...")` deltas via `client.messages.stream(...)`, then `("done", "")`.
+- `main.py` — new `POST /ask/stream` returns a `StreamingResponse` (media type `text/event-stream`); formats each tuple as `event: <type>\ndata: <json>\n\n`; errors surface as an `error` SSE event.
+- `AskAssistant.tsx` — now POSTs to `/ask/stream` and reads the response body with a `ReadableStream` reader (EventSource is GET-only), parsing SSE records; renders sources immediately, then the answer with a blinking cursor as tokens arrive. The non-streaming `/ask` is kept for reference.
+- **Verified live (2026-07-02):** `curl -N` on `/ask/stream` streamed a `sources` event, incremental `token` events, inline `[1][3]` citations, and a `done` event.
+
 ### How to run both services locally
 - **Backend** (from `backend/`): `venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000` → http://localhost:8000 (docs at `/docs`)
 - **Frontend** (from `frontend/`): `npm run dev` → http://localhost:3000
@@ -109,7 +115,7 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - [x] **Phase 2 — Embeddings & Pinecone:** Embed the chunks with Voyage, store vectors + metadata in Pinecone. Test semantic search: given a query, return the most similar chunks. **DONE 2026-07-02.**
 - [x] **Phase 3 — Basic RAG (single-step):** Question → embed → retrieve top chunks from Pinecone → pass them to Claude → return an answer grounded in the docs. **DONE 2026-07-02.**
 - [x] **Phase 4 — Citations:** Return which chunks/sources each answer used, and display them in the frontend. **DONE 2026-07-02.**
-- [ ] **Phase 5 — Streaming:** Stream Claude's answer to the frontend token-by-token instead of waiting for the full response.
+- [x] **Phase 5 — Streaming:** Stream Claude's answer to the frontend token-by-token instead of waiting for the full response. **DONE 2026-07-02.**
 - [ ] **Phase 6 — AGENTIC upgrade:** Instead of single-step retrieve-then-answer, Claude first decomposes the question into sub-questions, retrieves for each, then synthesizes a final answer across all retrieved context. (This is the core differentiator.)
 - [ ] **Phase 7 — Multi-source:** Add Tavily web search as an additional retrieval source alongside the document corpus. The agent decides when to use docs vs. web.
 - [ ] **Phase 8 — Polish:** Chat history, document library (manage multiple docs), improved UI, error/loading states.
