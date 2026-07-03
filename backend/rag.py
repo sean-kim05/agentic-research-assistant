@@ -31,6 +31,8 @@ Rules:
 - If the CONTEXT does not contain enough information to answer, say exactly: "I couldn't \
 find the answer to that in the uploaded documents." Do not guess.
 - Be concise and specific; paraphrase the relevant parts.
+- Cite your sources inline using their number in square brackets, e.g. [1] or [2][3], \
+right after the claim they support. Only cite sources you actually used.
 - Never invent facts, names, numbers, or sources."""
 
 _client: anthropic.Anthropic | None = None

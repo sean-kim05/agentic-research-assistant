@@ -227,14 +227,25 @@ class AskRequest(BaseModel):
     top_k: int = 5
 
 
+class Source(BaseModel):
+    """A retrieved chunk that was provided to Claude as context (Phase 4)."""
+
+    number: int  # matches the inline [n] citations in the answer
+    doc_id: Optional[str] = None
+    chunk_index: Optional[int] = None
+    score: float
+    text: str
+
+
 class AskResponse(BaseModel):
     question: str
     answer: str
+    sources: List[Source]
 
 
 @app.post("/ask", response_model=AskResponse)
 async def ask(req: AskRequest) -> AskResponse:
-    """Answer a question grounded in the retrieved document chunks."""
+    """Answer a question grounded in the retrieved document chunks + cite them."""
     if not (
         config.voyage_ready()
         and config.pinecone_ready()
@@ -253,4 +264,16 @@ async def ask(req: AskRequest) -> AskResponse:
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Answer failed: {exc}")
 
-    return AskResponse(question=req.question, answer=result["answer"])
+    # Number the sources 1..N to match the inline [n] citations in the answer.
+    sources = [
+        Source(
+            number=i,
+            doc_id=c.get("doc_id"),
+            chunk_index=c.get("chunk_index"),
+            score=c.get("score", 0.0),
+            text=c.get("text", ""),
+        )
+        for i, c in enumerate(result["chunks"], start=1)
+    ]
+
+    return AskResponse(question=req.question, answer=result["answer"], sources=sources)

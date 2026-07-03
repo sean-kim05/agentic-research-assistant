@@ -7,7 +7,15 @@
 import { useEffect, useState } from "react";
 import { API_URL } from "@/lib/api";
 
-type AskResponse = { question: string; answer: string };
+type Source = {
+  number: number;
+  doc_id: string | null;
+  chunk_index: number | null;
+  score: number;
+  text: string;
+};
+
+type AskResponse = { question: string; answer: string; sources: Source[] };
 
 type State =
   | { kind: "idle" }
@@ -110,10 +118,39 @@ export default function AskAssistant() {
       )}
 
       {state.kind === "done" && (
-        <div className="mt-4 rounded-xl border border-black/10 bg-white p-5 dark:border-white/15 dark:bg-zinc-900">
-          <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-800 dark:text-zinc-200">
-            {state.data.answer}
-          </p>
+        <div className="mt-4 space-y-4">
+          <div className="rounded-xl border border-black/10 bg-white p-5 dark:border-white/15 dark:bg-zinc-900">
+            <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-800 dark:text-zinc-200">
+              {state.data.answer}
+            </p>
+          </div>
+
+          {state.data.sources.length > 0 && (
+            <div>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Sources
+              </h3>
+              <ol className="space-y-2">
+                {state.data.sources.map((s) => (
+                  <li
+                    key={s.number}
+                    className="rounded-lg border border-black/10 bg-white p-3 dark:border-white/15 dark:bg-zinc-900"
+                  >
+                    <div className="mb-1 flex items-center justify-between text-xs text-zinc-500">
+                      <span className="font-medium">
+                        [{s.number}] {s.doc_id ?? "?"} · chunk #
+                        {s.chunk_index ?? "?"}
+                      </span>
+                      <span>score {s.score.toFixed(3)}</span>
+                    </div>
+                    <p className="line-clamp-3 whitespace-pre-wrap break-words text-xs text-zinc-600 dark:text-zinc-400">
+                      {s.text}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
         </div>
       )}
     </section>

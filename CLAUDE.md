@@ -85,6 +85,13 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - Dep added: `anthropic` (0.116.0). Real `ANTHROPIC_API_KEY` in `backend/.env`.
 - **Verified live (2026-07-02):** asked the indexed résumé about real-time systems; Claude synthesized a grounded answer across multiple chunks (CALIT2 100–200ms, CollabCode 17ms p95) with no hallucinations.
 
+**Phase 4 COMPLETE (2026-07-02) — citations verified live.**
+- `rag.py` SYSTEM prompt now instructs Claude to cite sources inline as `[n]` (matching the numbered `[Source n]` context blocks), only for sources actually used.
+- `main.py` — `POST /ask` response now includes a `sources` list (`number`, `doc_id`, `chunk_index`, `score`, `text`), numbered 1..N to match the inline citations.
+- `AskAssistant.tsx` — renders the answer plus a numbered "Sources" list (doc · chunk · cosine score · snippet).
+- The "not found in documents" case is handled by the same grounding prompt (Phase 3).
+- **Verified live (2026-07-02):** "what did the candidate do at CALIT2?" → answer with `[1][2]` inline citations + a 4-source list; citations map to the correct résumé chunks.
+
 ### How to run both services locally
 - **Backend** (from `backend/`): `venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000` → http://localhost:8000 (docs at `/docs`)
 - **Frontend** (from `frontend/`): `npm run dev` → http://localhost:3000
@@ -101,7 +108,7 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - [x] **Phase 1 — Upload & chunk (no AI):** File upload UI for PDFs. FastAPI endpoint that extracts the PDF text and splits it into chunks (fixed-size with overlap to start). Show the chunks. No embeddings yet. **DONE 2026-07-02.**
 - [x] **Phase 2 — Embeddings & Pinecone:** Embed the chunks with Voyage, store vectors + metadata in Pinecone. Test semantic search: given a query, return the most similar chunks. **DONE 2026-07-02.**
 - [x] **Phase 3 — Basic RAG (single-step):** Question → embed → retrieve top chunks from Pinecone → pass them to Claude → return an answer grounded in the docs. **DONE 2026-07-02.**
-- [ ] **Phase 4 — Citations:** Return which chunks/sources each answer used, and display them in the frontend.
+- [x] **Phase 4 — Citations:** Return which chunks/sources each answer used, and display them in the frontend. **DONE 2026-07-02.**
 - [ ] **Phase 5 — Streaming:** Stream Claude's answer to the frontend token-by-token instead of waiting for the full response.
 - [ ] **Phase 6 — AGENTIC upgrade:** Instead of single-step retrieve-then-answer, Claude first decomposes the question into sub-questions, retrieves for each, then synthesizes a final answer across all retrieved context. (This is the core differentiator.)
 - [ ] **Phase 7 — Multi-source:** Add Tavily web search as an additional retrieval source alongside the document corpus. The agent decides when to use docs vs. web.
