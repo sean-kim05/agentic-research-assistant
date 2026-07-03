@@ -1,32 +1,37 @@
 "use client";
 
-// Phase 3-6 UI: ask a question -> grounded, cited answer, streamed live.
-// Toggle "Agentic" to run the multi-step flow (/ask/agentic), which first
-// decomposes the question into sub-questions (shown as a plan) before
-// retrieving and synthesizing.
+// Phase 3-7 UI: ask a question -> grounded, cited answer, streamed live.
+// Agentic mode (/ask/agentic) decomposes the question into sub-questions, routes
+// each to documents and/or the web, then synthesizes one cited answer.
 
 import { useEffect, useState } from "react";
 import { API_URL } from "@/lib/api";
 
+type PlanItem = { question: string; source: string };
+
 type Source = {
   number: number;
-  doc_id: string | null;
-  chunk_index: number | null;
+  kind: "doc" | "web";
   score: number;
   text: string;
+  doc_id?: string | null;
+  chunk_index?: number | null;
+  title?: string | null;
+  url?: string | null;
 };
 
 type State =
   | { kind: "idle" }
-  | { kind: "streaming"; answer: string; sources: Source[]; plan: string[] }
+  | { kind: "streaming"; answer: string; sources: Source[]; plan: PlanItem[] }
   | { kind: "error"; message: string }
-  | { kind: "done"; answer: string; sources: Source[]; plan: string[] };
+  | { kind: "done"; answer: string; sources: Source[]; plan: PlanItem[] };
 
 export default function AskAssistant() {
   const [question, setQuestion] = useState("");
   const [agentic, setAgentic] = useState(true);
   const [state, setState] = useState<State>({ kind: "idle" });
   const [ready, setReady] = useState<boolean | null>(null);
+  const [webReady, setWebReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,6 +42,7 @@ export default function AskAssistant() {
           setReady(
             Boolean(s.voyage_ready && s.pinecone_ready && s.anthropic_ready),
           );
+          setWebReady(Boolean(s.web_search_ready));
         }
       })
       .catch(() => {
@@ -74,7 +80,7 @@ export default function AskAssistant() {
       let buffer = "";
       let answer = "";
       let sources: Source[] = [];
-      let plan: string[] = [];
+      let plan: PlanItem[] = [];
 
       for (;;) {
         const { done, value } = await reader.read();
@@ -93,7 +99,7 @@ export default function AskAssistant() {
             else if (line.startsWith("data:")) data += line.slice(5).trim();
           }
           if (event === "plan") {
-            plan = JSON.parse(data) as string[];
+            plan = JSON.parse(data) as PlanItem[];
             setState({ kind: "streaming", answer, sources, plan });
           } else if (event === "sources") {
             sources = JSON.parse(data) as Source[];
@@ -122,6 +128,21 @@ export default function AskAssistant() {
   const sources = showResult ? state.sources : [];
   const plan = showResult ? state.plan : [];
 
+  const sourceBadge = (source: string) => {
+    const styles: Record<string, string> = {
+      docs: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+      web: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
+      both: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+    };
+    return (
+      <span
+        className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${styles[source] ?? styles.docs}`}
+      >
+        {source}
+      </span>
+    );
+  };
+
   return (
     <section className="mt-10">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -135,12 +156,13 @@ export default function AskAssistant() {
             onChange={(e) => setAgentic(e.target.checked)}
             className="h-3.5 w-3.5 accent-emerald-600"
           />
-          Agentic mode (decompose into sub-questions)
+          Agentic mode {webReady ? "(docs + web)" : "(decompose)"}
         </label>
       </div>
       <p className="mt-1 text-sm text-zinc-500">
-        Claude answers using only the passages retrieved from your uploads, and
-        cites them.
+        Claude answers using only the retrieved sources
+        {webReady ? " (your documents + the live web)" : " from your uploads"},
+        and cites them.
       </p>
 
       {ready === false && (
@@ -157,7 +179,7 @@ export default function AskAssistant() {
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleAsk()}
-          placeholder="e.g. compare the candidate's backend and ML work"
+          placeholder="e.g. how does the candidate's stack compare to what's in demand now?"
           className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm text-black outline-none focus:border-blue-500 dark:border-white/20 dark:bg-zinc-900 dark:text-zinc-50"
         />
         <button
@@ -180,11 +202,14 @@ export default function AskAssistant() {
           {plan.length > 0 && (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/30">
               <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-                Plan — sub-questions
+                Plan — sub-questions &amp; source routing
               </h3>
               <ol className="list-decimal space-y-0.5 pl-5 text-sm text-emerald-900 dark:text-emerald-200">
-                {plan.map((sq, i) => (
-                  <li key={i}>{sq}</li>
+                {plan.map((p, i) => (
+                  <li key={i}>
+                    {p.question}
+                    {sourceBadge(p.source)}
+                  </li>
                 ))}
               </ol>
             </div>
@@ -208,12 +233,25 @@ export default function AskAssistant() {
                     key={s.number}
                     className="rounded-lg border border-black/10 bg-white p-3 dark:border-white/15 dark:bg-zinc-900"
                   >
-                    <div className="mb-1 flex items-center justify-between text-xs text-zinc-500">
+                    <div className="mb-1 flex items-center justify-between gap-2 text-xs text-zinc-500">
                       <span className="font-medium">
-                        [{s.number}] {s.doc_id ?? "?"} · chunk #
-                        {s.chunk_index ?? "?"}
+                        [{s.number}]{" "}
+                        {s.kind === "web" ? (
+                          <a
+                            href={s.url ?? "#"}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-purple-600 underline dark:text-purple-400"
+                          >
+                            🌐 {s.title || s.url}
+                          </a>
+                        ) : (
+                          <>
+                            📄 {s.doc_id ?? "?"} · chunk #{s.chunk_index ?? "?"}
+                          </>
+                        )}
                       </span>
-                      <span>score {s.score.toFixed(3)}</span>
+                      <span className="shrink-0">score {s.score.toFixed(3)}</span>
                     </div>
                     <p className="line-clamp-3 whitespace-pre-wrap break-words text-xs text-zinc-600 dark:text-zinc-400">
                       {s.text}

@@ -79,6 +79,7 @@ class StatusResponse(BaseModel):
     voyage_ready: bool
     pinecone_ready: bool
     anthropic_ready: bool
+    web_search_ready: bool
 
 
 @app.get("/status", response_model=StatusResponse)
@@ -88,6 +89,7 @@ async def status() -> StatusResponse:
         voyage_ready=config.voyage_ready(),
         pinecone_ready=config.pinecone_ready(),
         anthropic_ready=config.anthropic_ready(),
+        web_search_ready=config.tavily_ready(),
     )
 
 

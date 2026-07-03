@@ -107,6 +107,17 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - `AskAssistant.tsx` — "Agentic mode" toggle (default on); posts to `/ask/agentic`, renders the decomposition Plan box above the streamed, cited answer.
 - **Verified live (2026-07-02):** "compare the candidate's backend vs ML work" → decomposed into 3 sub-questions, retrieved 4 merged chunks, streamed a structured cited answer (`[2][3][4]`). Plain Python orchestration — no LangChain.
 
+**Phase 7 COMPLETE (2026-07-02) — MULTI-SOURCE (documents + web) verified live.**
+- `backend/web_search.py` — Tavily wrapper (`search_web(query, max_results)` → title/url/content/score).
+- `agent.py` upgraded to multi-source:
+  - `decompose()` now tags each sub-question with a source via structured outputs: `"docs"`, `"web"`, or `"both"` — the agent decides.
+  - `gather_context()` retrieves from Pinecone and/or Tavily per sub-question, merges into a unified, deduped, ranked list of sources (`kind: "doc"` | `"web"`). Degrades to docs-only if Tavily isn't configured.
+  - own `SYNTHESIS_SYSTEM` prompt + `_build_context`/`_sources_payload` that label and cite documents and web pages alike.
+- `main.py` — `GET /status` now reports `web_search_ready`; `/ask/agentic` unchanged (uses the upgraded agent).
+- `AskAssistant.tsx` — Plan box shows each sub-question with a source badge (docs/web/both); Sources list renders web results as clickable links (🌐) and docs as 📄.
+- Dep added: `tavily-python`. Real `TAVILY_API_KEY` in `backend/.env`.
+- **Verified live (2026-07-02):** "how does the candidate's stack compare to what's in demand in 2026?" → decomposed into 4 sub-questions (routed 3×docs, 1×web, 1×both), merged 5 web results + 4 résumé chunks, streamed a cited answer across both sources.
+
 ### How to run both services locally
 - **Backend** (from `backend/`): `venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000` → http://localhost:8000 (docs at `/docs`)
 - **Frontend** (from `frontend/`): `npm run dev` → http://localhost:3000
@@ -126,7 +137,7 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - [x] **Phase 4 — Citations:** Return which chunks/sources each answer used, and display them in the frontend. **DONE 2026-07-02.**
 - [x] **Phase 5 — Streaming:** Stream Claude's answer to the frontend token-by-token instead of waiting for the full response. **DONE 2026-07-02.**
 - [x] **Phase 6 — AGENTIC upgrade:** Instead of single-step retrieve-then-answer, Claude first decomposes the question into sub-questions, retrieves for each, then synthesizes a final answer across all retrieved context. (This is the core differentiator.) **DONE 2026-07-02.**
-- [ ] **Phase 7 — Multi-source:** Add Tavily web search as an additional retrieval source alongside the document corpus. The agent decides when to use docs vs. web.
+- [x] **Phase 7 — Multi-source:** Add Tavily web search as an additional retrieval source alongside the document corpus. The agent decides when to use docs vs. web. **DONE 2026-07-02.**
 - [ ] **Phase 8 — Polish:** Chat history, document library (manage multiple docs), improved UI, error/loading states.
 
 ---

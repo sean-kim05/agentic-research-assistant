@@ -18,6 +18,7 @@ load_dotenv()
 VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY", "").strip()
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "").strip()
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "").strip()
 
 # Values that mean "still a placeholder / not set". If the env var equals one
 # of these, we treat the corresponding service as NOT configured.
@@ -26,6 +27,7 @@ _PLACEHOLDERS = {
     "your-voyage-key-here",
     "your-pinecone-key-here",
     "your-anthropic-key-here",
+    "your-tavily-key-here",
     "changeme",
     "todo",
 }
@@ -58,3 +60,8 @@ def pinecone_ready() -> bool:
 def anthropic_ready() -> bool:
     """True once a real Anthropic (Claude) API key is present."""
     return ANTHROPIC_API_KEY.lower() not in _PLACEHOLDERS
+
+
+def tavily_ready() -> bool:
+    """True once a real Tavily (web search) API key is present."""
+    return TAVILY_API_KEY.lower() not in _PLACEHOLDERS

@@ -14,4 +14,5 @@ pinecone           # vector database (semantic search)
 # Phase 3 dependencies.
 anthropic          # Claude API (grounded answer generation)
 
-# Later phases will add: tavily-python
+# Phase 7 dependencies.
+tavily-python      # live web search (multi-source retrieval)
