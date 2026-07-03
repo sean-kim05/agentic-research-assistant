@@ -51,7 +51,7 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 ## Current State
 > Claude: keep this section updated to reflect what actually exists.
 
-**As of 2026-07-02:** Phase 0 + Phase 1 COMPLETE and verified. Two-service monorepo:
+**As of 2026-07-02:** ALL PHASES (0-8) COMPLETE and verified live. The app is a working agentic, multi-source, cited research assistant. Two-service monorepo:
 - `frontend/` — Next.js 16 (App Router) + React 19 + TypeScript + Tailwind.
   - `src/app/page.tsx` is now a **Server Component** that composes two Client "island" components.
   - `src/app/_components/BackendStatus.tsx` — client badge; live `/health` check.
@@ -118,6 +118,11 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - Dep added: `tavily-python`. Real `TAVILY_API_KEY` in `backend/.env`.
 - **Verified live (2026-07-02):** "how does the candidate's stack compare to what's in demand in 2026?" → decomposed into 4 sub-questions (routed 3×docs, 1×web, 1×both), merged 5 web results + 4 résumé chunks, streamed a cited answer across both sources.
 
+**Phase 8 COMPLETE (2026-07-02) — polish: document library + chat history verified live.**
+- **Document library:** `main.py` keeps an in-memory `DOCUMENTS` registry (populated on `/upload`); `GET /documents` lists them, `DELETE /documents/{doc_id}` removes a doc and calls `vector_store.delete_document(doc_id, num_chunks)` to delete its chunk vectors from Pinecone by id. `frontend/.../DocumentLibrary.tsx` lists docs and deletes them; `PdfUploader` dispatches a `documents-changed` window event so the library auto-refreshes.
+- **Chat history:** `AskRequest` accepts optional `history` (`[{question, answer}]`); `/ask/agentic` forwards it to `agent.stream_agentic_answer(..., history)`. `agent._format_history()` renders recent turns into both the decompose prompt (so follow-ups resolve pronouns/references into self-contained sub-questions) and the synthesis prompt (coherence). `AskAssistant.tsx` is now a chat transcript that keeps turns, sends the last 3 as history, streams each answer, and has a "Clear chat" button.
+- **Verified live (2026-07-02):** upload→`/documents`→delete round-trips (and Pinecone vectors deleted); a follow-up "what about their machine learning experience?" with one prior turn decomposed into self-contained sub-questions about *the candidate's* ML (reference resolved). Frontend compiles and serves 200 with all components.
+
 ### How to run both services locally
 - **Backend** (from `backend/`): `venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000` → http://localhost:8000 (docs at `/docs`)
 - **Frontend** (from `frontend/`): `npm run dev` → http://localhost:3000
@@ -138,7 +143,7 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - [x] **Phase 5 — Streaming:** Stream Claude's answer to the frontend token-by-token instead of waiting for the full response. **DONE 2026-07-02.**
 - [x] **Phase 6 — AGENTIC upgrade:** Instead of single-step retrieve-then-answer, Claude first decomposes the question into sub-questions, retrieves for each, then synthesizes a final answer across all retrieved context. (This is the core differentiator.) **DONE 2026-07-02.**
 - [x] **Phase 7 — Multi-source:** Add Tavily web search as an additional retrieval source alongside the document corpus. The agent decides when to use docs vs. web. **DONE 2026-07-02.**
-- [ ] **Phase 8 — Polish:** Chat history, document library (manage multiple docs), improved UI, error/loading states.
+- [x] **Phase 8 — Polish:** Chat history, document library (manage multiple docs), improved UI, error/loading states. **DONE 2026-07-02.**
 
 ---
 
@@ -158,6 +163,9 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - **Phase 2 graceful degradation with placeholder keys (2026-07-02):** the app runs with placeholder Voyage/Pinecone keys — upload + chunk still work; embedding/search are skipped (`/upload` returns `indexed:false`; `/search` → 503) with clear messages, and `GET /status` drives an "add keys" banner in the UI. Lets us build/verify the wiring before real keys exist.
 - **Phase 2 vector settings (2026-07-02):** `voyage-3` embeddings (1024-dim), Pinecone serverless index (cosine, aws/us-east-1), asymmetric input types (document vs query), lazy index creation on first use.
 - **Commits: no Claude attribution (2026-07-02):** commit messages are plain and do NOT include Claude/AI co-author or "generated with" trailers (Sean's preference).
+- **Phase 6/7 agentic design (2026-07-02):** plain-Python orchestration — `decompose` (structured outputs) → per-sub-question retrieval (Pinecone and/or Tavily, agent-routed) → single streamed synthesis. Merged sources are deduped by id and numbered so `[n]` citations line up. No LangChain/LlamaIndex.
+- **Phase 8 in-memory doc library + delete-by-id (2026-07-02):** `DOCUMENTS` registry is in-memory (empty after a restart, but the vectors persist in Pinecone); deletion reconstructs chunk ids (`{doc_id}::chunk-{i}`) and calls Pinecone `index.delete(ids=...)` since serverless indexes don't support metadata-filter deletes. Uploader→library refresh via a `documents-changed` window event (decoupled components).
+- **Phase 8 chat history (2026-07-02):** the frontend keeps the transcript and sends the last 3 `{question, answer}` turns as `history`; the backend threads it into BOTH the decompose prompt (resolve follow-up references into self-contained sub-questions) and the synthesis prompt (coherence). History is only used in agentic mode.
 - **Phase 3 grounding + anti-hallucination (2026-07-02):** the SYSTEM prompt forces Claude to answer ONLY from the retrieved CONTEXT and to say "I couldn't find the answer... in the uploaded documents" when it's absent. Chunks are passed as labeled `[Source N — doc chunk i]` blocks (sets up Phase 4 citations). Non-streaming `messages.create` (streaming is Phase 5). Model is config-driven (`ANSWER_MODEL`), default `claude-opus-4-8`.
 - **Restart backend on .env/code change (2026-07-02):** uvicorn `--reload` has intermittently NOT picked up changes (stale worker keeps the old code/keys, and orphaned processes hold port 8000). Reliable fix: kill python / free port 8000, start a fresh uvicorn. Verify via `GET /status`.
 

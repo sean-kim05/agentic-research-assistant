@@ -277,9 +277,15 @@ async def search(req: SearchRequest) -> SearchResponse:
 # ==========================================================================
 # Phase 3 - single-step RAG (retrieve + ask Claude)
 # ==========================================================================
+class HistoryTurn(BaseModel):
+    question: str
+    answer: str
+
+
 class AskRequest(BaseModel):
     question: str
     top_k: int = 5
+    history: Optional[List[HistoryTurn]] = None  # prior turns (Phase 8 chat memory)
 
 
 class Source(BaseModel):
@@ -389,10 +395,12 @@ async def ask_agentic(req: AskRequest) -> StreamingResponse:
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="Question must not be empty.")
 
+    history = [h.model_dump() for h in req.history] if req.history else None
+
     def event_stream():
         try:
             for event_type, payload in agent.stream_agentic_answer(
-                req.question, top_k=req.top_k
+                req.question, top_k=req.top_k, history=history
             ):
                 yield f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
         except Exception as exc:

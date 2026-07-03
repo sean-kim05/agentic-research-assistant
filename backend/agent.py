@@ -34,6 +34,10 @@ source most likely to answer it:
 - "web"   : needs current or external information not in the documents (recent events, prices, definitions, comparisons to the outside world)
 - "both"  : needs the documents AND the web
 
+If the current question refers to earlier turns (pronouns like "that"/"his", or follow-ups \
+like "what about..."), use the recent conversation to resolve those references so each \
+sub-question is self-contained.
+
 If the question is already simple and atomic, return a single sub-question."""
 
 _DECOMPOSE_SCHEMA = {
@@ -71,15 +75,39 @@ the answer to that in the available sources." Do not guess.
 - Never invent facts, names, numbers, or sources."""
 
 
-def decompose(question: str, max_subs: int = 4) -> list[dict]:
+def _format_history(history: list[dict] | None) -> str:
+    """Render the last few Q&A turns as a short context preamble."""
+    if not history:
+        return ""
+    lines = []
+    for turn in history[-3:]:  # keep it short - only recent context matters
+        q = str(turn.get("question", "")).strip()
+        a = str(turn.get("answer", "")).strip()
+        if q:
+            lines.append(f"Q: {q}")
+        if a:
+            lines.append(f"A: {a}")
+    if not lines:
+        return ""
+    return (
+        "Recent conversation (for context; most recent last):\n"
+        + "\n".join(lines)
+        + "\n\n"
+    )
+
+
+def decompose(
+    question: str, history: list[dict] | None = None, max_subs: int = 4
+) -> list[dict]:
     """Split into sub-questions, each tagged with a source. Falls back safely."""
     client = rag._get_client()
+    user_content = f"{_format_history(history)}Current question: {question}"
     try:
         response = client.messages.create(
             model=config.ANSWER_MODEL,
             max_tokens=512,
             system=DECOMPOSE_SYSTEM,
-            messages=[{"role": "user", "content": question}],
+            messages=[{"role": "user", "content": user_content}],
             output_config={
                 "format": {"type": "json_schema", "schema": _DECOMPOSE_SCHEMA}
             },
@@ -181,17 +209,20 @@ def _sources_payload(items: list[dict]) -> list[dict]:
     return out
 
 
-def stream_agentic_answer(question: str, top_k: int = 4):
-    """Generator for the agentic, multi-source flow (Phases 6 + 7).
+def stream_agentic_answer(
+    question: str, top_k: int = 4, history: list[dict] | None = None
+):
+    """Generator for the agentic, multi-source flow (Phases 6 + 7 + 8 history).
 
     Yields (event_type, payload):
       ("plan", [{question, source}])   the decomposition + source routing
       ("sources", [...])               merged, deduped doc + web sources
       ("token", "...")                 the synthesized answer, streamed
       ("done", "")
+    `history` is a list of prior {question, answer} turns (Phase 8 chat memory).
     """
     # 1. DECOMPOSE (+ route each sub-question to docs / web / both)
-    sub_items = decompose(question)
+    sub_items = decompose(question, history=history)
     yield ("plan", sub_items)
 
     # 2. RETRIEVE across sources, merged
@@ -207,10 +238,11 @@ def stream_agentic_answer(question: str, top_k: int = 4):
     context = _build_context(items)
     sub_list = "\n".join(f"- {s['question']}  [{s['source']}]" for s in sub_items)
     user_message = (
+        f"{_format_history(history)}"
         f"CONTEXT:\n{context}\n\n"
-        f"The user's ORIGINAL QUESTION: {question}\n\n"
+        f"The user's CURRENT QUESTION: {question}\n\n"
         f"You decomposed it into these sub-questions (with the source used):\n{sub_list}\n\n"
-        f"Now write one coherent, cited answer to the ORIGINAL QUESTION using the CONTEXT."
+        f"Now write one coherent, cited answer to the CURRENT QUESTION using the CONTEXT."
     )
 
     client = rag._get_client()
