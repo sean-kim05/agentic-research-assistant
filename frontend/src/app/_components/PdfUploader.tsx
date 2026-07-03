@@ -57,6 +57,8 @@ export default function PdfUploader() {
 
       const data = (await res.json()) as UploadResponse;
       setStatus({ kind: "done", data });
+      // Tell the DocumentLibrary to refresh.
+      window.dispatchEvent(new Event("documents-changed"));
     } catch (err) {
       setStatus({
         kind: "error",

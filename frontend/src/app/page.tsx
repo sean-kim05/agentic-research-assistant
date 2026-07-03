@@ -4,6 +4,7 @@
 
 import AskAssistant from "./_components/AskAssistant";
 import BackendStatus from "./_components/BackendStatus";
+import DocumentLibrary from "./_components/DocumentLibrary";
 import PdfUploader from "./_components/PdfUploader";
 import SemanticSearch from "./_components/SemanticSearch";
 
@@ -24,6 +25,7 @@ export default function Home() {
       </header>
 
       <PdfUploader />
+      <DocumentLibrary />
       <AskAssistant />
       <SemanticSearch />
     </main>

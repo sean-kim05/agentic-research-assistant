@@ -65,6 +65,15 @@ def upsert_chunks(
     return len(vectors)
 
 
+def delete_document(doc_id: str, num_chunks: int) -> int:
+    """Delete all of a document's chunk vectors from Pinecone by their ids."""
+    index = _get_index()
+    ids = [f"{doc_id}::chunk-{i}" for i in range(num_chunks)]
+    if ids:
+        index.delete(ids=ids)
+    return len(ids)
+
+
 def search(query_embedding: list[float], top_k: int = 5) -> list[dict]:
     """Return the top_k most similar stored chunks for a query embedding."""
     index = _get_index()

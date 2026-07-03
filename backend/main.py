@@ -43,6 +43,10 @@ CHUNK_OVERLAP = 200
 # before vector indexing; Pinecone (Phase 2) is the real retrieval store.
 UPLOADED_DOCUMENTS: dict[str, list[str]] = {}
 
+# Document library metadata (Phase 8): { doc_id: {filename, num_pages, ...} }.
+# In-memory like UPLOADED_DOCUMENTS; the vectors themselves live in Pinecone.
+DOCUMENTS: dict[str, dict] = {}
+
 app = FastAPI(title="Agentic Research Assistant API", version="0.2.0")
 
 app.add_middleware(
@@ -166,6 +170,16 @@ async def upload(file: UploadFile = File(...)) -> UploadResponse:
         for i, piece in enumerate(pieces)
     ]
 
+    # Record the document in the in-memory library (Phase 8).
+    DOCUMENTS[file.filename] = {
+        "doc_id": file.filename,
+        "filename": file.filename,
+        "num_pages": len(reader.pages),
+        "num_chars": len(full_text),
+        "num_chunks": len(chunks),
+        "indexed": indexed,
+    }
+
     return UploadResponse(
         filename=file.filename,
         num_pages=len(reader.pages),
@@ -177,6 +191,42 @@ async def upload(file: UploadFile = File(...)) -> UploadResponse:
         indexed=indexed,
         index_message=index_message,
     )
+
+
+# ==========================================================================
+# Phase 8 - document library (list + delete uploaded documents)
+# ==========================================================================
+class DocumentMeta(BaseModel):
+    doc_id: str
+    filename: str
+    num_pages: int
+    num_chars: int
+    num_chunks: int
+    indexed: bool
+
+
+@app.get("/documents", response_model=List[DocumentMeta])
+async def list_documents() -> List[DocumentMeta]:
+    """List the documents uploaded in this backend session."""
+    return [DocumentMeta(**meta) for meta in DOCUMENTS.values()]
+
+
+@app.delete("/documents/{doc_id}")
+async def delete_document(doc_id: str) -> dict:
+    """Remove a document: delete its vectors from Pinecone and forget it."""
+    meta = DOCUMENTS.get(doc_id)
+    if not meta:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    if meta.get("indexed") and config.pinecone_ready():
+        try:
+            vector_store.delete_document(doc_id, meta["num_chunks"])
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Delete failed: {exc}")
+
+    DOCUMENTS.pop(doc_id, None)
+    UPLOADED_DOCUMENTS.pop(doc_id, None)
+    return {"deleted": doc_id}
 
 
 # ==========================================================================
