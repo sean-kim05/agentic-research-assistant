@@ -97,12 +97,12 @@ export default function SemanticSearch() {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSearch()}
           placeholder="e.g. what is chunk overlap?"
-          className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm text-black outline-none focus:border-emerald-500 dark:border-white/20 dark:bg-zinc-900 dark:text-zinc-50"
+          className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm text-black outline-none focus:border-zinc-500 dark:border-white/20 dark:bg-zinc-900 dark:text-zinc-50"
         />
         <button
           onClick={handleSearch}
           disabled={!query.trim() || state.kind === "searching" || ready === false}
-          className="shrink-0 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+          className="shrink-0 rounded-md bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {state.kind === "searching" ? "Searching…" : "Search"}
         </button>

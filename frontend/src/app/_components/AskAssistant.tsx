@@ -68,11 +68,11 @@ function TurnView({
 
       {/* plan */}
       {turn.plan.length > 0 && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/30">
-          <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+        <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+          <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">
             Plan — sub-questions &amp; source routing
           </h3>
-          <ol className="list-decimal space-y-0.5 pl-5 text-sm text-emerald-900 dark:text-emerald-200">
+          <ol className="list-decimal space-y-0.5 pl-5 text-sm text-zinc-300">
             {turn.plan.map((p, i) => (
               <li key={i}>
                 {p.question}
@@ -271,7 +271,7 @@ export default function AskAssistant() {
               type="checkbox"
               checked={agentic}
               onChange={(e) => setAgentic(e.target.checked)}
-              className="h-3.5 w-3.5 accent-emerald-600"
+              className="h-3.5 w-3.5 accent-white"
             />
             Agentic mode {webReady ? "(docs + web)" : "(decompose)"}
           </label>
@@ -319,12 +319,12 @@ export default function AskAssistant() {
               ? "Ask a follow-up…"
               : "e.g. compare the candidate's backend and ML work"
           }
-          className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm text-black outline-none focus:border-blue-500 dark:border-white/20 dark:bg-zinc-900 dark:text-zinc-50"
+          className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm text-black outline-none focus:border-zinc-500 dark:border-white/20 dark:bg-zinc-900 dark:text-zinc-50"
         />
         <button
           onClick={handleAsk}
           disabled={!question.trim() || busy || ready === false}
-          className="shrink-0 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+          className="shrink-0 rounded-md bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? "Streaming…" : "Ask"}
         </button>

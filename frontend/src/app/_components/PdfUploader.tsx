@@ -87,7 +87,7 @@ export default function PdfUploader() {
           <button
             onClick={handleUpload}
             disabled={!file || status.kind === "uploading"}
-            className="shrink-0 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+            className="shrink-0 rounded-md bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {status.kind === "uploading" ? "Processing…" : "Upload & chunk"}
           </button>
