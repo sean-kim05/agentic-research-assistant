@@ -98,6 +98,15 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - `AskAssistant.tsx` — now POSTs to `/ask/stream` and reads the response body with a `ReadableStream` reader (EventSource is GET-only), parsing SSE records; renders sources immediately, then the answer with a blinking cursor as tokens arrive. The non-streaming `/ask` is kept for reference.
 - **Verified live (2026-07-02):** `curl -N` on `/ask/stream` streamed a `sources` event, incremental `token` events, inline `[1][3]` citations, and a `done` event.
 
+**Phase 6 COMPLETE (2026-07-02) — AGENTIC multi-step RAG verified live. This is the core differentiator.**
+- `backend/agent.py`:
+  - `decompose(question)` — Claude splits the question into 2-4 sub-questions via structured outputs (`output_config` json_schema); falls back to `[question]` on any error.
+  - `gather_context(sub_questions)` — semantic search for EACH sub-question, merged and deduped by chunk id (keeps the max score).
+  - `stream_agentic_answer(question)` — generator: yields `("plan", [...])`, then `("sources", [...])`, then streamed `("token", ...)` synthesized over all context, then `("done","")`. Synthesis reuses `rag.SYSTEM_PROMPT` (grounding + citations).
+- `main.py` — new `POST /ask/agentic` (SSE), same shape as `/ask/stream` plus a `plan` event.
+- `AskAssistant.tsx` — "Agentic mode" toggle (default on); posts to `/ask/agentic`, renders the decomposition Plan box above the streamed, cited answer.
+- **Verified live (2026-07-02):** "compare the candidate's backend vs ML work" → decomposed into 3 sub-questions, retrieved 4 merged chunks, streamed a structured cited answer (`[2][3][4]`). Plain Python orchestration — no LangChain.
+
 ### How to run both services locally
 - **Backend** (from `backend/`): `venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000` → http://localhost:8000 (docs at `/docs`)
 - **Frontend** (from `frontend/`): `npm run dev` → http://localhost:3000
@@ -116,7 +125,7 @@ The frontend and backend are **separate services** that talk over HTTP. This is 
 - [x] **Phase 3 — Basic RAG (single-step):** Question → embed → retrieve top chunks from Pinecone → pass them to Claude → return an answer grounded in the docs. **DONE 2026-07-02.**
 - [x] **Phase 4 — Citations:** Return which chunks/sources each answer used, and display them in the frontend. **DONE 2026-07-02.**
 - [x] **Phase 5 — Streaming:** Stream Claude's answer to the frontend token-by-token instead of waiting for the full response. **DONE 2026-07-02.**
-- [ ] **Phase 6 — AGENTIC upgrade:** Instead of single-step retrieve-then-answer, Claude first decomposes the question into sub-questions, retrieves for each, then synthesizes a final answer across all retrieved context. (This is the core differentiator.)
+- [x] **Phase 6 — AGENTIC upgrade:** Instead of single-step retrieve-then-answer, Claude first decomposes the question into sub-questions, retrieves for each, then synthesizes a final answer across all retrieved context. (This is the core differentiator.) **DONE 2026-07-02.**
 - [ ] **Phase 7 — Multi-source:** Add Tavily web search as an additional retrieval source alongside the document corpus. The agent decides when to use docs vs. web.
 - [ ] **Phase 8 — Polish:** Chat history, document library (manage multiple docs), improved UI, error/loading states.
 

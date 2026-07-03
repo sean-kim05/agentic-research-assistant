@@ -1,10 +1,9 @@
 "use client";
 
-// Phase 3-5 UI: ask a question, get an answer Claude generates grounded in the
-// retrieved chunks, WITH citations, STREAMED token-by-token.
-//
-// We POST to /ask/stream and read the response body as a stream (EventSource
-// only supports GET, so we parse the SSE format manually with a reader).
+// Phase 3-6 UI: ask a question -> grounded, cited answer, streamed live.
+// Toggle "Agentic" to run the multi-step flow (/ask/agentic), which first
+// decomposes the question into sub-questions (shown as a plan) before
+// retrieving and synthesizing.
 
 import { useEffect, useState } from "react";
 import { API_URL } from "@/lib/api";
@@ -19,12 +18,13 @@ type Source = {
 
 type State =
   | { kind: "idle" }
-  | { kind: "streaming"; answer: string; sources: Source[] }
+  | { kind: "streaming"; answer: string; sources: Source[]; plan: string[] }
   | { kind: "error"; message: string }
-  | { kind: "done"; answer: string; sources: Source[] };
+  | { kind: "done"; answer: string; sources: Source[]; plan: string[] };
 
 export default function AskAssistant() {
   const [question, setQuestion] = useState("");
+  const [agentic, setAgentic] = useState(true);
   const [state, setState] = useState<State>({ kind: "idle" });
   const [ready, setReady] = useState<boolean | null>(null);
 
@@ -49,13 +49,14 @@ export default function AskAssistant() {
 
   async function handleAsk() {
     if (!question.trim()) return;
-    setState({ kind: "streaming", answer: "", sources: [] });
+    setState({ kind: "streaming", answer: "", sources: [], plan: [] });
 
+    const endpoint = agentic ? "/ask/agentic" : "/ask/stream";
     try {
-      const res = await fetch(`${API_URL}/ask/stream`, {
+      const res = await fetch(`${API_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, top_k: 5 }),
+        body: JSON.stringify({ question, top_k: agentic ? 4 : 5 }),
       });
       if (!res.ok || !res.body) {
         let detail = `Ask failed (${res.status})`;
@@ -73,15 +74,15 @@ export default function AskAssistant() {
       let buffer = "";
       let answer = "";
       let sources: Source[] = [];
+      let plan: string[] = [];
 
-      // Read the stream chunk by chunk, splitting on the SSE record separator.
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
 
         const records = buffer.split("\n\n");
-        buffer = records.pop() ?? ""; // keep the incomplete trailing record
+        buffer = records.pop() ?? "";
 
         for (const record of records) {
           if (!record.trim()) continue;
@@ -91,19 +92,22 @@ export default function AskAssistant() {
             if (line.startsWith("event:")) event = line.slice(6).trim();
             else if (line.startsWith("data:")) data += line.slice(5).trim();
           }
-          if (event === "sources") {
+          if (event === "plan") {
+            plan = JSON.parse(data) as string[];
+            setState({ kind: "streaming", answer, sources, plan });
+          } else if (event === "sources") {
             sources = JSON.parse(data) as Source[];
-            setState({ kind: "streaming", answer, sources });
+            setState({ kind: "streaming", answer, sources, plan });
           } else if (event === "token") {
             answer += JSON.parse(data) as string;
-            setState({ kind: "streaming", answer, sources });
+            setState({ kind: "streaming", answer, sources, plan });
           } else if (event === "error") {
             throw new Error(JSON.parse(data) as string);
           }
         }
       }
 
-      setState({ kind: "done", answer, sources });
+      setState({ kind: "done", answer, sources, plan });
     } catch (err) {
       setState({
         kind: "error",
@@ -113,16 +117,27 @@ export default function AskAssistant() {
   }
 
   const busy = state.kind === "streaming";
-  const answer =
-    state.kind === "streaming" || state.kind === "done" ? state.answer : "";
-  const sources =
-    state.kind === "streaming" || state.kind === "done" ? state.sources : [];
+  const showResult = state.kind === "streaming" || state.kind === "done";
+  const answer = showResult ? state.answer : "";
+  const sources = showResult ? state.sources : [];
+  const plan = showResult ? state.plan : [];
 
   return (
     <section className="mt-10">
-      <h2 className="text-lg font-semibold tracking-tight text-black dark:text-zinc-50">
-        Ask your documents
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold tracking-tight text-black dark:text-zinc-50">
+          Ask your documents
+        </h2>
+        <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+          <input
+            type="checkbox"
+            checked={agentic}
+            onChange={(e) => setAgentic(e.target.checked)}
+            className="h-3.5 w-3.5 accent-emerald-600"
+          />
+          Agentic mode (decompose into sub-questions)
+        </label>
+      </div>
       <p className="mt-1 text-sm text-zinc-500">
         Claude answers using only the passages retrieved from your uploads, and
         cites them.
@@ -142,7 +157,7 @@ export default function AskAssistant() {
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleAsk()}
-          placeholder="e.g. what backend experience does the candidate have?"
+          placeholder="e.g. compare the candidate's backend and ML work"
           className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm text-black outline-none focus:border-blue-500 dark:border-white/20 dark:bg-zinc-900 dark:text-zinc-50"
         />
         <button
@@ -160,8 +175,21 @@ export default function AskAssistant() {
         </div>
       )}
 
-      {(state.kind === "streaming" || state.kind === "done") && (
+      {showResult && (
         <div className="mt-4 space-y-4">
+          {plan.length > 0 && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/30">
+              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                Plan — sub-questions
+              </h3>
+              <ol className="list-decimal space-y-0.5 pl-5 text-sm text-emerald-900 dark:text-emerald-200">
+                {plan.map((sq, i) => (
+                  <li key={i}>{sq}</li>
+                ))}
+              </ol>
+            </div>
+          )}
+
           <div className="rounded-xl border border-black/10 bg-white p-5 dark:border-white/15 dark:bg-zinc-900">
             <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-800 dark:text-zinc-200">
               {answer}

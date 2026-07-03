@@ -20,6 +20,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from pypdf import PdfReader
 
+import agent
 import config
 import embeddings
 import rag
@@ -311,6 +312,38 @@ async def ask_stream(req: AskRequest) -> StreamingResponse:
             ):
                 yield f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
         except Exception as exc:  # surface errors as an SSE event, not a crash
+            yield f"event: error\ndata: {json.dumps(str(exc))}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+# ==========================================================================
+# Phase 6 - AGENTIC RAG (decompose -> retrieve per sub-question -> synthesize)
+# ==========================================================================
+@app.post("/ask/agentic")
+async def ask_agentic(req: AskRequest) -> StreamingResponse:
+    """Multi-step RAG. Streams a `plan` (sub-questions) event, then `sources`,
+    then the synthesized answer as `token` events, then `done`."""
+    if not (
+        config.voyage_ready()
+        and config.pinecone_ready()
+        and config.anthropic_ready()
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail="Ask unavailable: set VOYAGE_API_KEY, PINECONE_API_KEY, and "
+            "ANTHROPIC_API_KEY in backend/.env, then restart the backend.",
+        )
+    if not req.question.strip():
+        raise HTTPException(status_code=400, detail="Question must not be empty.")
+
+    def event_stream():
+        try:
+            for event_type, payload in agent.stream_agentic_answer(
+                req.question, top_k=req.top_k
+            ):
+                yield f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
+        except Exception as exc:
             yield f"event: error\ndata: {json.dumps(str(exc))}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
