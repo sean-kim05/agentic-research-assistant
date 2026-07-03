@@ -18,10 +18,10 @@ export default function Home() {
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-2">
             <span className="grid h-6 w-6 place-items-center rounded-md bg-white text-[13px] font-bold text-black">
-              R
+              S
             </span>
             <span className="text-sm font-semibold tracking-tight text-zinc-100">
-              research<span className="text-zinc-500">.ai</span>
+              Sourced
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -45,13 +45,13 @@ export default function Home() {
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
             Agentic · multi-source · cited
           </div>
-          <h1 className="bg-gradient-to-b from-white to-zinc-500 bg-clip-text text-4xl font-semibold tracking-tight text-balance text-transparent sm:text-6xl">
-            Agentic Research Assistant
+          <h1 className="bg-gradient-to-b from-white to-zinc-500 bg-clip-text text-5xl font-semibold tracking-tight text-balance text-transparent sm:text-7xl">
+            Sourced
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-pretty text-sm leading-relaxed text-zinc-400 sm:text-base">
-            Upload documents, then ask questions answered across your files and
-            the live web. Each question is decomposed into sub-questions,
-            retrieved from the right source, and answered with citations.
+            Ask questions across your documents and the live web — each one
+            decomposed into sub-questions, retrieved from the right source, and
+            answered with citations you can trace.
           </p>
           <div className="mt-7 flex flex-wrap justify-center gap-2">
             {STACK.map((tech) => (

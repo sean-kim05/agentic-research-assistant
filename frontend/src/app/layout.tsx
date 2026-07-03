@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Agentic Research Assistant",
+  title: "Sourced — agentic research assistant",
   description:
     "Ask questions across your documents and the live web — decomposed, retrieved, and cited. Next.js + FastAPI + Claude + Pinecone.",
 };
