@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: `dark:` utilities activate under a `.dark` ancestor.
+   We put `.dark` on <html> in layout.tsx to force the developer-dark theme. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 @theme inline {
@@ -12,15 +16,20 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+/* Subtle emerald/teal glow behind the whole app (developer-tool vibe). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55rem 38rem at 50% -12%, rgba(16, 185, 129, 0.1), transparent 60%),
+    radial-gradient(45rem 35rem at 100% 0%, rgba(20, 184, 166, 0.06), transparent 55%);
 }
