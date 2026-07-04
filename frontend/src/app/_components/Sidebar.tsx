@@ -5,7 +5,8 @@ import Brand from "./Brand";
 import DocumentLibrary from "./DocumentLibrary";
 import BackendStatus from "./BackendStatus";
 import ThemeToggle from "./ThemeToggle";
-import type { View } from "./Workspace";
+import { signOutAction } from "../actions/auth";
+import type { View, SessionUser } from "./Workspace";
 
 const NAV: { id: View; label: string; icon: React.ReactNode }[] = [
   {
@@ -33,10 +34,12 @@ export default function Sidebar({
   view,
   onView,
   onNewThread,
+  user = null,
 }: {
   view: View;
   onView: (v: View) => void;
   onNewThread: () => void;
+  user?: SessionUser;
 }) {
   return (
     <aside
@@ -133,21 +136,68 @@ export default function Sidebar({
         <DocumentLibrary />
       </div>
 
-      {/* Footer: backend status + theme. A real user menu (avatar, name,
-          sign out) replaces this once Google auth is wired up. */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 9,
-          borderTop: "1px solid var(--line)",
-          marginTop: 10,
-          paddingTop: 12,
-        }}
-      >
-        <BackendStatus />
-        <ThemeToggle size={28} />
+      {/* Footer: signed-in user (when auth is on) + backend status + theme. */}
+      <div style={{ borderTop: "1px solid var(--line)", marginTop: 10, paddingTop: 12 }}>
+        {user && (
+          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10, padding: "0 2px" }}>
+            <span
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                background: "var(--clay)",
+                color: "var(--on-clay)",
+                fontSize: 12,
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                textTransform: "uppercase",
+              }}
+            >
+              {(user.name || user.email || "?").trim().charAt(0)}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 12.5,
+                  fontWeight: 500,
+                  color: "var(--ink)",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {user.name || user.email}
+              </div>
+            </div>
+            <form action={signOutAction}>
+              <button
+                type="submit"
+                title="Sign out"
+                aria-label="Sign out"
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--ink3)",
+                  cursor: "pointer",
+                  padding: 0,
+                  display: "flex",
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
+                </svg>
+              </button>
+            </form>
+          </div>
+        )}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 9 }}>
+          <BackendStatus />
+          <ThemeToggle size={28} />
+        </div>
       </div>
     </aside>
   );

@@ -61,6 +61,7 @@ upsert vectors + metadata to Pinecone.
 - 🔗 **Citations** — every claim carries an `[n]` marker linked to a numbered source (📄 doc / 🌐 web).
 - 💬 **Chat history** — follow-ups reuse recent turns so pronouns/references resolve.
 - 🌗 **Light / dark theme** with no flash on load.
+- 🔐 **Google sign-in (optional)** — Auth.js/NextAuth v5; gates `/app` and shows a user menu when configured, fully dormant otherwise.
 
 ---
 
@@ -113,6 +114,21 @@ npm run dev                      # http://localhost:3000
 
 The app **degrades gracefully** without keys: upload + chunking still work, and `/status`
 drives an "add keys" banner while embedding/search/answer endpoints return `503`.
+
+### Google sign-in (optional, frontend)
+
+Auth is off until you add Google OAuth credentials — the app is open to everyone until then.
+To enable it, set these in `frontend/.env.local` (server-side only):
+
+| Variable             | Purpose                                                        |
+| -------------------- | -------------------------------------------------------------- |
+| `AUTH_SECRET`        | Session-cookie encryption key (`openssl rand -base64 32`)       |
+| `AUTH_GOOGLE_ID`     | OAuth client ID (Google Cloud Console → Credentials)           |
+| `AUTH_GOOGLE_SECRET` | OAuth client secret                                            |
+
+Authorized redirect URI in Google Console: `http://localhost:3000/api/auth/callback/google`
+(and the Vercel URL for prod). Once set, `/app` requires sign-in and the sidebar shows a
+user menu. (Protecting the FastAPI backend with the session token is a planned follow-up.)
 
 ---
 

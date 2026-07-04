@@ -4,6 +4,8 @@
 import Link from "next/link";
 import Brand from "./_components/Brand";
 import ThemeToggle from "./_components/ThemeToggle";
+import { auth, authEnabled } from "@/auth";
+import { signInWithGoogle } from "./actions/auth";
 
 const GITHUB = "https://github.com/sean-kim05/agentic-research-assistant";
 const STACK = ["Next.js", "FastAPI", "Claude", "Pinecone", "Voyage", "Tavily"];
@@ -11,7 +13,24 @@ const STACK = ["Next.js", "FastAPI", "Claude", "Pinecone", "Voyage", "Tavily"];
 const serif = "var(--font-newsreader), Georgia, serif";
 const mono = "var(--font-geist-mono), monospace";
 
-export default function Landing() {
+const ctaSolid: React.CSSProperties = {
+  fontFamily: "inherit",
+  fontWeight: 600,
+  color: "var(--btn-fg)",
+  background: "var(--btn-bg)",
+  border: "none",
+  cursor: "pointer",
+  textDecoration: "none",
+  borderRadius: 11,
+};
+
+export default async function Landing() {
+  const session = authEnabled ? await auth() : null;
+  const signedIn = Boolean(session);
+  // When auth is enabled and the visitor isn't signed in, the CTA starts Google
+  // sign-in; otherwise it just opens the app.
+  const needsSignIn = authEnabled && !signedIn;
+
   return (
     <div
       style={{
@@ -37,21 +56,17 @@ export default function Landing() {
         <Brand />
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <ThemeToggle />
-          <Link
-            href="/app"
-            style={{
-              fontFamily: "inherit",
-              fontSize: 13,
-              fontWeight: 600,
-              color: "var(--btn-fg)",
-              background: "var(--btn-bg)",
-              padding: "8px 14px",
-              borderRadius: 9,
-              textDecoration: "none",
-            }}
-          >
-            Open Docent →
-          </Link>
+          {needsSignIn ? (
+            <form action={signInWithGoogle}>
+              <button type="submit" style={{ ...ctaSolid, fontSize: 13, padding: "8px 14px", borderRadius: 9 }}>
+                Continue with Google
+              </button>
+            </form>
+          ) : (
+            <Link href="/app" style={{ ...ctaSolid, fontSize: 13, padding: "8px 14px", borderRadius: 9 }}>
+              Open Docent →
+            </Link>
+          )}
         </div>
       </header>
 
@@ -116,21 +131,17 @@ export default function Landing() {
           </p>
 
           <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 30, flexWrap: "wrap" }}>
-            <Link
-              href="/app"
-              style={{
-                fontFamily: "inherit",
-                fontSize: 14,
-                fontWeight: 600,
-                color: "var(--btn-fg)",
-                background: "var(--btn-bg)",
-                padding: "12px 22px",
-                borderRadius: 11,
-                textDecoration: "none",
-              }}
-            >
-              Open Docent →
-            </Link>
+            {needsSignIn ? (
+              <form action={signInWithGoogle}>
+                <button type="submit" style={{ ...ctaSolid, fontSize: 14, padding: "12px 22px" }}>
+                  Continue with Google
+                </button>
+              </form>
+            ) : (
+              <Link href="/app" style={{ ...ctaSolid, fontSize: 14, padding: "12px 22px" }}>
+                Open Docent →
+              </Link>
+            )}
             <a
               href={GITHUB}
               target="_blank"
@@ -152,7 +163,11 @@ export default function Landing() {
           </div>
 
           <p style={{ marginTop: 16, fontSize: 12, color: "var(--ink3)" }}>
-            Google sign-in coming soon.
+            {needsSignIn
+              ? "Sign in with Google to open your workspace."
+              : authEnabled
+                ? "You're signed in."
+                : "Open access — Google sign-in available once configured."}
           </p>
 
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8, marginTop: 40 }}>

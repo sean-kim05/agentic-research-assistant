@@ -11,7 +11,13 @@ import SemanticSearch from "./SemanticSearch";
 
 export type View = "chat" | "search";
 
-export default function Workspace() {
+export type SessionUser = {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+} | null;
+
+export default function Workspace({ user = null }: { user?: SessionUser }) {
   const [view, setView] = useState<View>("chat");
 
   const newThread = () => {
@@ -21,7 +27,7 @@ export default function Workspace() {
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "var(--bg)" }}>
-      <Sidebar view={view} onView={setView} onNewThread={newThread} />
+      <Sidebar view={view} onView={setView} onNewThread={newThread} user={user} />
       <main style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         {/* Both panes stay mounted so chat state/streaming survive a view switch. */}
         <div style={{ display: view === "chat" ? "flex" : "none", flex: 1, minHeight: 0, flexDirection: "column" }}>
