@@ -45,7 +45,15 @@ def _get_client() -> anthropic.Anthropic:
         )
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+        # timeout: a stuck upstream call fails in ~45s instead of the SDK's
+        # 10-minute default (which shows up as an endpoint that returns 200 then
+        # streams nothing). max_retries: transparently retry transient drops
+        # like RemoteDisconnected / connection resets before surfacing an error.
+        _client = anthropic.Anthropic(
+            api_key=config.ANTHROPIC_API_KEY,
+            timeout=45.0,
+            max_retries=2,
+        )
     return _client
 
 

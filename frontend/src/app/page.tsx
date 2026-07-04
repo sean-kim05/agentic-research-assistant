@@ -1,88 +1,207 @@
-// Server Component: the app shell (nav + hero + footer) around the interactive
-// client "islands". Vercel-style monochrome dark theme (forced in layout.tsx).
+// Landing page (marketing front door). The app itself lives at /app.
+// Server Component with two small client islands (ThemeToggle).
 
-import AskAssistant from "./_components/AskAssistant";
-import BackendStatus from "./_components/BackendStatus";
-import DocumentLibrary from "./_components/DocumentLibrary";
-import PdfUploader from "./_components/PdfUploader";
-import SemanticSearch from "./_components/SemanticSearch";
+import Link from "next/link";
+import Brand from "./_components/Brand";
+import ThemeToggle from "./_components/ThemeToggle";
 
 const GITHUB = "https://github.com/sean-kim05/agentic-research-assistant";
 const STACK = ["Next.js", "FastAPI", "Claude", "Pinecone", "Voyage", "Tavily"];
 
-export default function Home() {
+const serif = "var(--font-newsreader), Georgia, serif";
+const mono = "var(--font-geist-mono), monospace";
+
+export default function Landing() {
   return (
-    <div className="flex min-h-screen flex-col">
-      {/* Sticky glass nav */}
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-black/60 backdrop-blur-md">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-2">
-            <span className="grid h-6 w-6 place-items-center rounded-md bg-white text-[13px] font-bold text-black">
-              S
-            </span>
-            <span className="text-sm font-semibold tracking-tight text-zinc-100">
-              Sourced
-            </span>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        background: "var(--bg)",
+        color: "var(--ink)",
+      }}
+    >
+      {/* top bar */}
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "16px 24px",
+          maxWidth: 1040,
+          width: "100%",
+          margin: "0 auto",
+        }}
+      >
+        <Brand />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <ThemeToggle />
+          <Link
+            href="/app"
+            style={{
+              fontFamily: "inherit",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "var(--btn-fg)",
+              background: "var(--btn-bg)",
+              padding: "8px 14px",
+              borderRadius: 9,
+              textDecoration: "none",
+            }}
+          >
+            Open Docent →
+          </Link>
+        </div>
+      </header>
+
+      {/* hero */}
+      <main
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px 24px",
+        }}
+      >
+        <div style={{ maxWidth: 660, textAlign: "center" }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              fontFamily: mono,
+              fontSize: 10.5,
+              textTransform: "uppercase",
+              letterSpacing: "0.1em",
+              color: "var(--clay)",
+              background: "var(--clay-soft)",
+              border: "1px solid var(--clay-border)",
+              padding: "5px 12px",
+              borderRadius: 999,
+              marginBottom: 26,
+            }}
+          >
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--clay)" }} />
+            Agentic · multi-source · cited
           </div>
-          <div className="flex items-center gap-3">
+
+          <h1
+            style={{
+              fontFamily: serif,
+              fontSize: 52,
+              lineHeight: 1.08,
+              fontWeight: 500,
+              letterSpacing: "-0.02em",
+              color: "var(--ink)",
+              margin: 0,
+            }}
+          >
+            Answers you can trace back to the source.
+          </h1>
+
+          <p
+            style={{
+              maxWidth: 520,
+              margin: "22px auto 0",
+              fontSize: 16,
+              lineHeight: 1.65,
+              color: "var(--ink2)",
+            }}
+          >
+            Docent decomposes each question into sub-questions, retrieves from
+            your uploaded documents <em style={{ fontStyle: "normal", color: "var(--ink)" }}>and</em> the
+            live web, then writes a structured answer with citations you can open.
+          </p>
+
+          <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 30, flexWrap: "wrap" }}>
+            <Link
+              href="/app"
+              style={{
+                fontFamily: "inherit",
+                fontSize: 14,
+                fontWeight: 600,
+                color: "var(--btn-fg)",
+                background: "var(--btn-bg)",
+                padding: "12px 22px",
+                borderRadius: 11,
+                textDecoration: "none",
+              }}
+            >
+              Open Docent →
+            </Link>
             <a
               href={GITHUB}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-zinc-400 transition-colors hover:text-zinc-100"
+              style={{
+                fontFamily: "inherit",
+                fontSize: 14,
+                fontWeight: 500,
+                color: "var(--ink2)",
+                background: "transparent",
+                padding: "12px 22px",
+                borderRadius: 11,
+                border: "1px solid var(--line2)",
+                textDecoration: "none",
+              }}
             >
-              GitHub ↗
+              View source
             </a>
-            <BackendStatus />
           </div>
-        </div>
-      </header>
 
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 sm:px-6">
-        {/* Hero */}
-        <section className="py-16 text-center sm:py-24">
-          <div className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-medium text-zinc-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            Agentic · multi-source · cited
-          </div>
-          <h1 className="bg-gradient-to-b from-white to-zinc-500 bg-clip-text text-5xl font-semibold tracking-tight text-balance text-transparent sm:text-7xl">
-            Sourced
-          </h1>
-          <p className="mx-auto mt-5 max-w-xl text-pretty text-sm leading-relaxed text-zinc-400 sm:text-base">
-            Ask questions across your documents and the live web — each one
-            decomposed into sub-questions, retrieved from the right source, and
-            answered with citations you can trace.
+          <p style={{ marginTop: 16, fontSize: 12, color: "var(--ink3)" }}>
+            Google sign-in coming soon.
           </p>
-          <div className="mt-7 flex flex-wrap justify-center gap-2">
+
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8, marginTop: 40 }}>
             {STACK.map((tech) => (
               <span
                 key={tech}
-                className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] text-zinc-400"
+                style={{
+                  fontFamily: mono,
+                  fontSize: 11,
+                  color: "var(--ink3)",
+                  border: "1px solid var(--line)",
+                  background: "var(--surface)",
+                  padding: "5px 11px",
+                  borderRadius: 999,
+                }}
               >
                 {tech}
               </span>
             ))}
           </div>
-        </section>
-
-        {/* Feature panels (each component renders its own titled section) */}
-        <div className="space-y-2 pb-20">
-          <PdfUploader />
-          <DocumentLibrary />
-          <AskAssistant />
-          <SemanticSearch />
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-white/10">
-        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-xs text-zinc-500 sm:px-6">
+      {/* footer */}
+      <footer
+        style={{
+          borderTop: "1px solid var(--line)",
+          padding: "18px 24px",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1040,
+            margin: "0 auto",
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            fontSize: 12,
+            color: "var(--ink3)",
+          }}
+        >
           <span>Agentic RAG · plain-Python retrieval, no LangChain</span>
           <a
             href={GITHUB}
             target="_blank"
             rel="noopener noreferrer"
-            className="transition-colors hover:text-zinc-300"
+            style={{ color: "var(--ink3)", textDecoration: "none" }}
           >
             sean-kim05/agentic-research-assistant
           </a>

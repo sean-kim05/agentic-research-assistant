@@ -1,35 +1,38 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Newsreader, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+// Inter = UI sans, Newsreader = serif (headings + answer prose), Geist Mono =
+// labels/scores. All three are variable fonts, so no per-weight imports needed.
+const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
+const newsreader = Newsreader({ variable: "--font-newsreader", subsets: ["latin"] });
+const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Sourced — agentic research assistant",
+  title: "Docent — agentic research assistant",
   description:
     "Ask questions across your documents and the live web — decomposed, retrieved, and cited. Next.js + FastAPI + Claude + Pinecone.",
 };
+
+// Set the theme on <html> before first paint so there's no light/dark flash.
+// Runtime toggling + persistence lives in lib/theme.ts.
+const themeScript = `try{var t=localStorage.getItem('theme');document.documentElement.setAttribute('data-theme',(t==='dark'||t==='light')?t:'light');}catch(e){document.documentElement.setAttribute('data-theme','light');}`;
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // `dark` forces the developer-dark theme (class-based, see globals.css).
   return (
     <html
       lang="en"
-      className={`dark ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+      className={`${inter.variable} ${newsreader.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="font-sans min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full">
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        {children}
+      </body>
     </html>
   );
 }

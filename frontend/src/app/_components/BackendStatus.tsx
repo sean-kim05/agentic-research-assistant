@@ -1,7 +1,7 @@
 "use client";
 
-// Small live badge showing whether the FastAPI backend is reachable.
-// Client Component because it fetches from the browser on mount.
+// Live dot + label showing whether the FastAPI backend is reachable.
+// Fetches /health from the browser on mount.
 
 import { useEffect, useState } from "react";
 import { API_URL } from "@/lib/api";
@@ -23,13 +23,22 @@ export default function BackendStatus() {
   }, []);
 
   const label =
-    ok === null ? "checking…" : ok ? "backend online" : "backend offline";
-  const dot = ok === null ? "bg-zinc-400" : ok ? "bg-green-500" : "bg-red-500";
+    ok === null ? "Connecting…" : ok ? "Backend online" : "Backend offline";
+  const color =
+    ok === null ? "var(--ink3)" : ok ? "var(--sage)" : "var(--danger)";
 
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-black/10 px-3 py-1 text-xs text-zinc-600 dark:border-white/15 dark:text-zinc-300">
-      <span className={`h-2 w-2 rounded-full ${dot}`} />
-      {label}
-    </span>
+    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+      <span
+        style={{
+          width: 5,
+          height: 5,
+          borderRadius: "50%",
+          background: color,
+          animation: ok ? "pulse-dot 2.4s ease-in-out infinite" : "none",
+        }}
+      />
+      <span style={{ fontSize: 10.5, color: "var(--ink3)" }}>{label}</span>
+    </div>
   );
 }

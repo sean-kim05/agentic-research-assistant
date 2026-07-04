@@ -1,8 +1,8 @@
 "use client";
 
-// Phase 2 UI: type a query, hit the backend's /search, and show the most
-// semantically similar chunks (by cosine similarity score). Checks /status on
-// mount so it can tell you when the API keys aren't configured yet.
+// Secondary tool (sidebar "Search chunks"): type a query, hit /search, and see
+// the chunks closest in meaning by cosine similarity. Checks /status on mount so
+// it can tell you when the embedding keys aren't configured yet.
 
 import { useEffect, useState } from "react";
 import { API_URL } from "@/lib/api";
@@ -23,12 +23,14 @@ type State =
   | { kind: "error"; message: string }
   | { kind: "done"; data: SearchResponse };
 
+const mono = "var(--font-geist-mono), monospace";
+const serif = "var(--font-newsreader), Georgia, serif";
+
 export default function SemanticSearch() {
   const [query, setQuery] = useState("");
   const [state, setState] = useState<State>({ kind: "idle" });
   const [ready, setReady] = useState<boolean | null>(null);
 
-  // Ask the backend whether embeddings + vector search are usable yet.
   useEffect(() => {
     let cancelled = false;
     fetch(`${API_URL}/status`)
@@ -74,71 +76,165 @@ export default function SemanticSearch() {
   }
 
   return (
-    <section className="mt-10 border-t border-black/10 pt-8 dark:border-white/15">
-      <h2 className="text-lg font-semibold tracking-tight text-black dark:text-zinc-50">
-        Semantic search
-      </h2>
-      <p className="mt-1 text-sm text-zinc-500">
-        Find the chunks closest in meaning to your query (not just keyword match).
-      </p>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minWidth: 0 }}>
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: "0 24px",
+          height: 56,
+          borderBottom: "1px solid var(--line)",
+          flexShrink: 0,
+          background: "var(--topbar)",
+          backdropFilter: "blur(12px)",
+          gap: 10,
+        }}
+      >
+        <span style={{ fontFamily: serif, fontSize: 16, fontWeight: 500, color: "var(--ink)" }}>
+          Search chunks
+        </span>
+        <span style={{ fontFamily: mono, fontSize: 10.5, color: "var(--ink3)" }}>
+          semantic · cosine similarity
+        </span>
+      </header>
 
-      {ready === false && (
-        <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
-          Search is disabled until <code>VOYAGE_API_KEY</code> and{" "}
-          <code>PINECONE_API_KEY</code> are set in <code>backend/.env</code>{" "}
-          (then restart the backend).
-        </div>
-      )}
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+        <div style={{ maxWidth: 740, margin: "0 auto", padding: "28px 28px 40px" }}>
+          <p style={{ fontSize: 14, color: "var(--ink2)", lineHeight: 1.6, margin: "0 0 18px" }}>
+            Find the chunks closest in meaning to your query — not just keyword matches.
+            This is the raw retrieval layer behind agentic answers.
+          </p>
 
-      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          placeholder="e.g. what is chunk overlap?"
-          className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm text-black outline-none focus:border-zinc-500 dark:border-white/20 dark:bg-zinc-900 dark:text-zinc-50"
-        />
-        <button
-          onClick={handleSearch}
-          disabled={!query.trim() || state.kind === "searching" || ready === false}
-          className="shrink-0 rounded-md bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {state.kind === "searching" ? "Searching…" : "Search"}
-        </button>
-      </div>
-
-      {state.kind === "error" && (
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
-          {state.message}
-        </div>
-      )}
-
-      {state.kind === "done" && (
-        <div className="mt-4 space-y-3">
-          {state.data.matches.length === 0 && (
-            <p className="text-sm text-zinc-500">
-              No matches yet — have you uploaded a PDF?
-            </p>
-          )}
-          {state.data.matches.map((m) => (
+          {ready === false && (
             <div
-              key={m.id}
-              className="rounded-lg border border-black/10 bg-white p-4 dark:border-white/15 dark:bg-zinc-900"
+              style={{
+                marginBottom: 18,
+                padding: 14,
+                borderRadius: 10,
+                border: "1px solid var(--amber)",
+                background: "var(--clay-soft)",
+                fontSize: 13,
+                color: "var(--ink2)",
+              }}
             >
-              <div className="mb-2 flex items-center justify-between text-xs text-zinc-500">
-                <span className="font-medium">
-                  {m.doc_id ?? "?"} · chunk #{m.chunk_index ?? "?"}
-                </span>
-                <span>score {m.score.toFixed(3)}</span>
-              </div>
-              <p className="whitespace-pre-wrap break-words text-sm text-zinc-700 dark:text-zinc-300">
-                {m.text}
-              </p>
+              Search is disabled until <code style={{ fontFamily: mono }}>VOYAGE_API_KEY</code> and{" "}
+              <code style={{ fontFamily: mono }}>PINECONE_API_KEY</code> are set in{" "}
+              <code style={{ fontFamily: mono }}>backend/.env</code> (then restart the backend).
             </div>
-          ))}
+          )}
+
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              background: "var(--surface)",
+              border: "1px solid var(--line2)",
+              borderRadius: 12,
+              padding: "8px 8px 8px 14px",
+              alignItems: "center",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink3)" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              placeholder="e.g. what is chunk overlap?"
+              style={{
+                flex: 1,
+                background: "none",
+                border: "none",
+                outline: "none",
+                color: "var(--ink)",
+                fontFamily: "inherit",
+                fontSize: 14,
+                minWidth: 0,
+              }}
+            />
+            <button
+              onClick={handleSearch}
+              disabled={!query.trim() || state.kind === "searching" || ready === false}
+              style={{
+                flexShrink: 0,
+                fontFamily: "inherit",
+                fontSize: 12.5,
+                fontWeight: 600,
+                padding: "8px 14px",
+                borderRadius: 8,
+                border: "none",
+                cursor:
+                  !query.trim() || state.kind === "searching" || ready === false
+                    ? "not-allowed"
+                    : "pointer",
+                background: "var(--btn-bg)",
+                color: "var(--btn-fg)",
+                opacity: !query.trim() || state.kind === "searching" || ready === false ? 0.5 : 1,
+              }}
+            >
+              {state.kind === "searching" ? "Searching…" : "Search"}
+            </button>
+          </div>
+
+          {state.kind === "error" && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: 14,
+                borderRadius: 10,
+                border: "1px solid var(--danger-border)",
+                background: "var(--danger-soft)",
+                fontSize: 13,
+                color: "var(--danger)",
+              }}
+            >
+              {state.message}
+            </div>
+          )}
+
+          {state.kind === "done" && (
+            <div style={{ marginTop: 20 }}>
+              {state.data.matches.length === 0 && (
+                <p style={{ fontSize: 13, color: "var(--ink3)" }}>
+                  No matches yet — have you added a PDF to the Library?
+                </p>
+              )}
+              {state.data.matches.map((m, i) => (
+                <div
+                  key={m.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: 13,
+                    padding: "14px 2px",
+                    borderBottom: "1px solid var(--line)",
+                  }}
+                >
+                  <span style={{ flexShrink: 0, fontFamily: serif, fontSize: 15, color: "var(--clay)", width: 18 }}>
+                    {i + 1}
+                  </span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 5 }}>
+                      <span style={{ fontFamily: mono, fontSize: 11, color: "var(--ink3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {m.doc_id ?? "?"} · chunk #{m.chunk_index ?? "?"}
+                      </span>
+                      <span style={{ flexShrink: 0, fontFamily: mono, fontSize: 11, color: "var(--ink2)", fontVariantNumeric: "tabular-nums" }}>
+                        {m.score.toFixed(3)}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: 13.5, color: "var(--ink2)", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                      {m.text}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
-    </section>
+      </div>
+    </div>
   );
 }

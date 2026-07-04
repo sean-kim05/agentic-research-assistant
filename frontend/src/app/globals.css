@@ -1,27 +1,139 @@
 @import "tailwindcss";
 
-/* Class-based dark mode: `dark:` utilities activate under a `.dark` ancestor. */
-@custom-variant dark (&:where(.dark, .dark *));
+/* Theme is driven by [data-theme] on <html> (set pre-paint in layout.tsx and
+   toggled at runtime via lib/theme.ts). `:root` = light so unset renders light. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-:root {
-  --background: #000000;
-  --foreground: #ededed;
+:root,
+[data-theme="light"] {
+  --bg: #edefe8;
+  --surface: #f6f7f2;
+  --sidebar: #e4e7dd;
+  --topbar: rgba(237, 239, 232, 0.85);
+  --ink: #1a1c19;
+  --ink2: #54584f;
+  --ink3: #8a8e84;
+  --line: rgba(26, 28, 25, 0.1);
+  --line2: rgba(26, 28, 25, 0.14);
+  --tint: rgba(26, 28, 25, 0.045);
+  --tint2: rgba(26, 28, 25, 0.02);
+  --clay: #2f6a4c;
+  --clay-soft: rgba(47, 106, 76, 0.12);
+  --clay-border: rgba(47, 106, 76, 0.42);
+  --sage: #2f6a4c;
+  --amber: #b7893a;
+  --danger: #b5502e;
+  --danger-soft: rgba(181, 80, 46, 0.12);
+  --danger-border: rgba(181, 80, 46, 0.4);
+  --btn-bg: #1a1c19;
+  --btn-fg: #edefe8;
+  --btn-hover: #000000;
+  --knob: #f6f7f2;
+  --on-clay: #f2f5ee;
+  --prose: #2c2e29;
 }
 
+[data-theme="dark"] {
+  --bg: #0f1210;
+  --surface: #171a16;
+  --sidebar: #0a0c0a;
+  --topbar: rgba(15, 18, 16, 0.85);
+  --ink: #e8ebe4;
+  --ink2: #a8ada2;
+  --ink3: #74796f;
+  --line: rgba(255, 255, 255, 0.09);
+  --line2: rgba(255, 255, 255, 0.14);
+  --tint: rgba(255, 255, 255, 0.045);
+  --tint2: rgba(255, 255, 255, 0.025);
+  --clay: #5faa7f;
+  --clay-soft: rgba(95, 170, 127, 0.15);
+  --clay-border: rgba(95, 170, 127, 0.45);
+  --sage: #5faa7f;
+  --amber: #c79a4e;
+  --danger: #e0795a;
+  --danger-soft: rgba(224, 121, 90, 0.14);
+  --danger-border: rgba(224, 121, 90, 0.4);
+  --btn-bg: #e8ebe4;
+  --btn-fg: #0f1210;
+  --btn-hover: #ffffff;
+  --knob: #e8ebe4;
+  --on-clay: #0f1210;
+  --prose: #e3e7dd;
+}
+
+/* Map next/font CSS vars (set on <html> in layout.tsx) onto Tailwind families so
+   `font-sans` / `font-serif` / `font-mono` utilities resolve correctly. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-newsreader);
   --font-mono: var(--font-geist-mono);
 }
 
-/* IMPORTANT: reference --font-geist-sans directly (set by next/font on <html>).
-   Using var(--font-sans) here breaks — @theme inline doesn't emit it as a real
-   CSS variable, so the whole declaration went invalid and fell back to Times. */
+* {
+  box-sizing: border-box;
+}
+
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+html {
+  background: var(--bg);
+}
+
+/* Reference --font-inter directly here: @theme inline does NOT emit --font-sans
+   as a real CSS variable, so using it in a raw declaration breaks the rule. */
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
+  font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  line-height: 1.5;
+}
+
+::selection {
+  background: rgba(181, 80, 46, 0.28);
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line2);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@keyframes blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
