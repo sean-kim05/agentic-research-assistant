@@ -1,18 +1,11 @@
 import type { NextConfig } from "next";
 
-// Optional dev proxy: when BACKEND_PROXY_TARGET is set (see .env.local), browser
-// calls to /proxy/* are reverse-proxied by the Next server to the real backend.
-// Because that hop is server-to-server, it sidesteps CORS entirely — so local dev
-// can talk to the live Render backend without adding localhost to its allowlist.
-// In production BACKEND_PROXY_TARGET is unset, so this is a no-op and the frontend
-// calls the backend directly via NEXT_PUBLIC_API_URL.
-const proxyTarget = process.env.BACKEND_PROXY_TARGET;
-
-const nextConfig: NextConfig = {
-  async rewrites() {
-    if (!proxyTarget) return [];
-    return [{ source: "/proxy/:path*", destination: `${proxyTarget}/:path*` }];
-  },
-};
+// Local dev reaches the backend through the streaming proxy route handler at
+// src/app/proxy/[...path]/route.ts (see .env.local's BACKEND_PROXY_TARGET) —
+// that hop is server-to-server, so it avoids CORS AND passes SSE through
+// unbuffered (a next.config `rewrites()` proxy buffers streamed responses).
+// In production BACKEND_PROXY_TARGET is unset and the frontend calls the
+// backend directly via NEXT_PUBLIC_API_URL.
+const nextConfig: NextConfig = {};
 
 export default nextConfig;
