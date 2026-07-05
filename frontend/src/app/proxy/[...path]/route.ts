@@ -22,11 +22,18 @@ async function handler(
   const url = `${TARGET}/${path.join("/")}${search}`;
 
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
+  const headers: Record<string, string> = {};
+  const contentType = req.headers.get("content-type");
+  if (contentType) headers["content-type"] = contentType;
+  // Inject the backend secret server-side (never exposed to the browser) so the
+  // gated backend accepts the request. No-op if BACKEND_API_SECRET is unset.
+  if (process.env.BACKEND_API_SECRET) {
+    headers["x-api-key"] = process.env.BACKEND_API_SECRET;
+  }
+
   const upstream = await fetch(url, {
     method: req.method,
-    headers: req.headers.get("content-type")
-      ? { "content-type": req.headers.get("content-type")! }
-      : undefined,
+    headers,
     body: hasBody ? await req.arrayBuffer() : undefined,
   });
 

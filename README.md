@@ -111,6 +111,8 @@ npm run dev                      # http://localhost:3000
 | `TAVILY_API_KEY`    | Web search (optional — degrades to docs-only)        |
 | `FRONTEND_ORIGINS`  | Comma-separated CORS origins (default `http://localhost:3000`) |
 | `ANSWER_MODEL`      | Override the answer model (e.g. `claude-haiku-4-5`)  |
+| `BACKEND_API_SECRET`| Optional. When set, protected endpoints require `X-API-Key` (see below) |
+| `RATE_LIMIT_*`      | Optional per-IP rate limits (`RATE_LIMIT_ASK`/`UPLOAD`/`SEARCH`/`DEFAULT`) |
 
 The app **degrades gracefully** without keys: upload + chunking still work, and `/status`
 drives an "add keys" banner while embedding/search/answer endpoints return `503`.
@@ -146,6 +148,26 @@ user menu. (Protecting the FastAPI backend with the session token is a planned f
 | POST   | `/ask/agentic`       | Agentic multi-source answer, streamed (SSE)         |
 
 ---
+
+## Rate limiting & access control
+
+- **Rate limiting** is always on: per-IP limits (via `slowapi`) on the expensive
+  endpoints, so a public URL can't be hammered to burn API keys. Over-limit → `429`.
+- **Optional API-key gate**: set `BACKEND_API_SECRET` and the protected endpoints
+  require an `X-API-Key` header. The Next.js proxy injects it server-side, so the
+  secret never reaches the browser. Unset → the backend is open (unchanged). To
+  enable in prod: set `BACKEND_API_SECRET` on the backend host **and** route the
+  frontend through the proxy (`NEXT_PUBLIC_API_URL=/proxy` + `BACKEND_PROXY_TARGET`).
+
+## Tests
+
+Backend tests use `pytest` + FastAPI's `TestClient` and run **without any API keys**
+(protected endpoints reach their "keys not configured" branch):
+
+```bash
+cd backend
+python -m pytest        # chunking, config, health/status, upload validation, gate, rate limits
+```
 
 ## Why plain Python (no LangChain)
 

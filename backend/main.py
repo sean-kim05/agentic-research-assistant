@@ -14,11 +14,14 @@ import os
 from typing import List, Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from pypdf import PdfReader
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 import agent
 import config
@@ -28,6 +31,44 @@ import vector_store
 from chunking import chunk_text
 
 load_dotenv()
+
+
+# --- Access control (optional) --------------------------------------------
+def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
+    """Gate protected endpoints behind a shared secret WHEN one is configured.
+
+    If BACKEND_API_SECRET is unset the backend is open (unchanged behavior).
+    When set, callers must send `X-API-Key: <secret>`; the Next.js proxy adds
+    it server-side so the secret never reaches the browser.
+    """
+    if config.api_auth_enabled() and x_api_key != config.BACKEND_API_SECRET:
+        raise HTTPException(status_code=401, detail="Missing or invalid API key.")
+
+
+# --- Rate limiting (per client IP) ----------------------------------------
+def _client_ip(request: Request) -> str:
+    """Real client IP. Behind Render's proxy request.client is the proxy, so
+    prefer the first X-Forwarded-For entry to rate-limit per actual user."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return get_remote_address(request)
+
+
+limiter = Limiter(
+    key_func=_client_ip,
+    default_limits=[config.RATE_LIMIT_DEFAULT],
+)
+
+
+def _rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    """Return a clean JSON 429 the frontend can display."""
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(
+        status_code=429,
+        content={"detail": f"Rate limit exceeded ({exc.detail}). Please slow down."},
+    )
 
 FRONTEND_ORIGINS = [
     origin.strip()
@@ -48,6 +89,10 @@ UPLOADED_DOCUMENTS: dict[str, list[str]] = {}
 DOCUMENTS: dict[str, dict] = {}
 
 app = FastAPI(title="Agentic Research Assistant API", version="0.2.0")
+
+# Register the rate limiter (slowapi). Requests over a limit get a 429.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -118,8 +163,13 @@ class UploadResponse(BaseModel):
     index_message: str      # human-readable note about indexing
 
 
-@app.post("/upload", response_model=UploadResponse)
-async def upload(file: UploadFile = File(...)) -> UploadResponse:
+@app.post(
+    "/upload",
+    response_model=UploadResponse,
+    dependencies=[Depends(require_api_key)],
+)
+@limiter.limit(config.RATE_LIMIT_UPLOAD)
+async def upload(request: Request, file: UploadFile = File(...)) -> UploadResponse:
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Please upload a .pdf file.")
 
@@ -211,8 +261,9 @@ async def list_documents() -> List[DocumentMeta]:
     return [DocumentMeta(**meta) for meta in DOCUMENTS.values()]
 
 
-@app.delete("/documents/{doc_id}")
-async def delete_document(doc_id: str) -> dict:
+@app.delete("/documents/{doc_id}", dependencies=[Depends(require_api_key)])
+@limiter.limit(config.RATE_LIMIT_DEFAULT)
+async def delete_document(request: Request, doc_id: str) -> dict:
     """Remove a document: delete its vectors from Pinecone and forget it."""
     meta = DOCUMENTS.get(doc_id)
     if not meta:
@@ -250,8 +301,13 @@ class SearchResponse(BaseModel):
     matches: List[SearchMatch]
 
 
-@app.post("/search", response_model=SearchResponse)
-async def search(req: SearchRequest) -> SearchResponse:
+@app.post(
+    "/search",
+    response_model=SearchResponse,
+    dependencies=[Depends(require_api_key)],
+)
+@limiter.limit(config.RATE_LIMIT_SEARCH)
+async def search(request: Request, req: SearchRequest) -> SearchResponse:
     """Embed the query and return the most semantically similar stored chunks."""
     if not (config.voyage_ready() and config.pinecone_ready()):
         raise HTTPException(
@@ -304,8 +360,13 @@ class AskResponse(BaseModel):
     sources: List[Source]
 
 
-@app.post("/ask", response_model=AskResponse)
-async def ask(req: AskRequest) -> AskResponse:
+@app.post(
+    "/ask",
+    response_model=AskResponse,
+    dependencies=[Depends(require_api_key)],
+)
+@limiter.limit(config.RATE_LIMIT_ASK)
+async def ask(request: Request, req: AskRequest) -> AskResponse:
     """Answer a question grounded in the retrieved document chunks + cite them."""
     if not (
         config.voyage_ready()
@@ -343,8 +404,9 @@ async def ask(req: AskRequest) -> AskResponse:
 # ==========================================================================
 # Phase 5 - streaming RAG (Server-Sent Events)
 # ==========================================================================
-@app.post("/ask/stream")
-async def ask_stream(req: AskRequest) -> StreamingResponse:
+@app.post("/ask/stream", dependencies=[Depends(require_api_key)])
+@limiter.limit(config.RATE_LIMIT_ASK)
+async def ask_stream(request: Request, req: AskRequest) -> StreamingResponse:
     """Same as /ask, but streams the answer token-by-token as SSE.
 
     Events: `sources` (once), `token` (many), `done` (once), `error` (on failure).
@@ -378,8 +440,9 @@ async def ask_stream(req: AskRequest) -> StreamingResponse:
 # ==========================================================================
 # Phase 6 - AGENTIC RAG (decompose -> retrieve per sub-question -> synthesize)
 # ==========================================================================
-@app.post("/ask/agentic")
-async def ask_agentic(req: AskRequest) -> StreamingResponse:
+@app.post("/ask/agentic", dependencies=[Depends(require_api_key)])
+@limiter.limit(config.RATE_LIMIT_ASK)
+async def ask_agentic(request: Request, req: AskRequest) -> StreamingResponse:
     """Multi-step RAG. Streams a `plan` (sub-questions) event, then `sources`,
     then the synthesized answer as `token` events, then `done`."""
     if not (

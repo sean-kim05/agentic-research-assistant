@@ -16,3 +16,6 @@ anthropic          # Claude API (grounded answer generation)
 
 # Phase 7 dependencies.
 tavily-python      # live web search (multi-source retrieval)
+
+# Hardening dependencies.
+slowapi            # per-IP rate limiting (abuse / key-burning protection)
