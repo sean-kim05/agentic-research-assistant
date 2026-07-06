@@ -41,27 +41,104 @@ const PLAN_DOT: Record<string, string> = {
   both: "var(--amber)",
 };
 
-// Turn plain "[n]" citation markers into clay superscripts, preserving newlines.
-function renderAnswer(text: string) {
+// Claude replies in Markdown. We render the common cases the model actually uses
+// — **bold**, ## headings, and -/1. lists — plus turn "[n]" citation markers into
+// clay superscripts. (A full Markdown lib is overkill for this limited output.)
+
+// Inline: [n] citations -> superscripts.
+function renderCitations(text: string, keyBase: string): React.ReactNode[] {
   return text.split(/(\[\d+\])/g).map((part, i) => {
     const m = /^\[(\d+)\]$/.exec(part);
     if (m) {
       return (
         <sup
-          key={i}
-          style={{
-            color: "var(--clay)",
-            fontFamily: mono,
-            fontSize: 10,
-            fontWeight: 500,
-            padding: "0 1px",
-          }}
+          key={`${keyBase}-c${i}`}
+          style={{ color: "var(--clay)", fontFamily: mono, fontSize: 10, fontWeight: 500, padding: "0 1px" }}
         >
           [{m[1]}]
         </sup>
       );
     }
-    return <span key={i}>{part}</span>;
+    return <span key={`${keyBase}-c${i}`}>{part}</span>;
+  });
+}
+
+// Inline: **bold** (with citations inside), interleaved with plain text.
+function renderInline(text: string, keyBase: string): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  text.split(/(\*\*[^*]+\*\*)/g).forEach((seg, i) => {
+    if (!seg) return;
+    const b = /^\*\*([^*]+)\*\*$/.exec(seg);
+    if (b) {
+      out.push(
+        <strong key={`${keyBase}-b${i}`} style={{ fontWeight: 600, color: "var(--ink)" }}>
+          {renderCitations(b[1], `${keyBase}-b${i}`)}
+        </strong>,
+      );
+    } else {
+      out.push(...renderCitations(seg, `${keyBase}-t${i}`));
+    }
+  });
+  return out;
+}
+
+// Block-level: headings, bullets, numbered items, dividers, paragraphs.
+function renderAnswer(text: string, streaming = false) {
+  const lines = text.split("\n");
+  return lines.map((line, i) => {
+    const heading = /^\s*#{1,6}\s+(.*)$/.exec(line);
+    const bullet = /^\s*[-*]\s+(.*)$/.exec(line);
+    const numbered = /^\s*(\d+)\.\s+(.*)$/.exec(line);
+    const rule = /^\s*---+\s*$/.test(line);
+    const caret =
+      streaming && i === lines.length - 1 ? (
+        <span key="caret" style={{ marginLeft: 2, color: "var(--clay)", animation: "blink 1s step-start infinite" }}>
+          ▍
+        </span>
+      ) : null;
+
+    if (heading) {
+      return (
+        <div key={i} style={{ fontWeight: 600, fontSize: 16.5, color: "var(--ink)", margin: "18px 0 6px", lineHeight: 1.4 }}>
+          {renderInline(heading[1], `h${i}`)}
+          {caret}
+        </div>
+      );
+    }
+    if (rule) {
+      return <div key={i} style={{ borderTop: "1px solid var(--line)", margin: "14px 0" }} />;
+    }
+    if (bullet) {
+      return (
+        <div key={i} style={{ display: "flex", gap: 10, margin: "4px 0" }}>
+          <span style={{ color: "var(--ink3)", flexShrink: 0 }}>•</span>
+          <span>
+            {renderInline(bullet[1], `l${i}`)}
+            {caret}
+          </span>
+        </div>
+      );
+    }
+    if (numbered) {
+      return (
+        <div key={i} style={{ display: "flex", gap: 10, margin: "4px 0" }}>
+          <span style={{ color: "var(--ink3)", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{numbered[1]}.</span>
+          <span>
+            {renderInline(numbered[2], `l${i}`)}
+            {caret}
+          </span>
+        </div>
+      );
+    }
+    if (line.trim() === "") {
+      return <div key={i} style={{ height: "0.5em" }}>{caret}</div>;
+    }
+    return (
+      <div key={i} style={{ margin: "2px 0" }}>
+        {renderInline(line, `p${i}`)}
+        {caret}
+      </div>
+    );
   });
 }
 
@@ -286,14 +363,10 @@ function TurnView({ turn, streaming = false }: { turn: Turn; streaming?: boolean
                 fontSize: 18,
                 color: "var(--prose)",
                 lineHeight: 1.72,
-                whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
               }}
             >
-              {renderAnswer(turn.answer)}
-              {streaming && (
-                <span style={{ marginLeft: 2, color: "var(--clay)", animation: "blink 1s step-start infinite" }}>▍</span>
-              )}
+              {renderAnswer(turn.answer, streaming)}
             </div>
           )}
 
